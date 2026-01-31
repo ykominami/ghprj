@@ -1,0 +1,55 @@
+[project]
+name = "ghprj"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+ "pyyaml>=6.0.3",
+ "toml>=0.10.2",
+]
+license = "MIT"
+classifiers = [ "Development Status :: 3 - Alpha", "Intended Audience :: Developers", "License :: OSI Approved :: MIT License", "Programming Language :: Python :: 3", "Programming Language :: Python :: 3.10",]
+[[project.authors]]
+name = "ykominami"
+email = "ykominami@gmail.com"
+
+[build-system]
+requires = [ "uv_build>=0.9.13,<0.10.0",]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [ "black>=25.11.0", "build>=1.3.0", "hatch>=1.16.1", "mypy>=1.19.0", "pytest>=9.0.1", "pytest-cov>=7.0.0", "ruff>=0.14.7", "twine>=6.2.0",]
+
+[project.scripts]
+ghprj = "ghprj:main"
+yklibpy-main = "yklibpy:main"
+yklibpy-xmain = "yklibpy:xmain"
+yklibpy-app = "yklibpy:app.main"
+
+[project.urls]
+Homepage = "https://github.com/ykominami/yklibpy"
+Repository = "https://github.com/ykominami/yklibpy"
+
+[tool.black]
+line-length = 88
+target-version = [ "py314",]
+include = "\\.pyi?$"
+
+[tool.ruff]
+target-version = "py314"
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+
+[tool.pytest.ini_options]
+addopts = "-ra -q"
+testpaths = [ "tests",]
+
+[tool.ruff.lint]
+select = [ "E", "F", "I", "N",]
+ignore = [ "E501",]
+
+[tool.hatch.build.targets.wheel]
+packages = [ "src/ghprj",]
