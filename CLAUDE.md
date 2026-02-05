@@ -36,9 +36,9 @@ uv run mypy src/
 
 ## Architecture
 
-The project is a single-module utility library at `src/ghprj/main.py` with functional design (no classes). The package entry point re-exports `main` from `__init__.py`.
+The project is a single-module utility library at `src/ghprj/ghprj.py` with functional design (no classes). The package entry point re-exports `main` from `__init__.py`.
 
-**Core functions in `main.py`:**
+**Core functions in `ghprj.py`:**
 - `run_command` / `run_command_simple` — Execute CLI commands (e.g., `gh repo list`) and capture output
 - `load_json_array` / `save_as_json` / `save_file` — File I/O with validation
 - `array_to_dict` — Convert list-of-dicts to dict-of-dicts keyed by a specified field
