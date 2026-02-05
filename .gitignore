@@ -7,6 +7,8 @@ wheels/
 *.egg-info
 /_private/
 /_output/
-
+.env
+repos.json
+repos.tsv
 # Virtual environments
 .venv
