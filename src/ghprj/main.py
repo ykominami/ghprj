@@ -1,11 +1,15 @@
 """コマンドライン実行ユーティリティ"""
 
 import json
+import os
 import subprocess
 from pathlib import Path
 from typing import Any, Optional, cast
 
+from dotenv import load_dotenv
+
 from ghprj.cli import Cli
+
 
 def run_command(
     command: str | list[str],
@@ -86,7 +90,7 @@ def run_command_simple(command: str | list[str], shell: bool = False) -> str:
     return result.stdout
 
 
-def load_json_array(file_path: str, encoding: str = "utf-8") -> list[Any]:
+def load_json_array(file_path: str | Path, encoding: str = "utf-8") -> list[Any]:
     """
     JSON形式ファイルを読み込み、連装配列として返す。
 
@@ -122,7 +126,7 @@ def save_as_json(data: list[Any], file_path: str, encoding: str = "utf-8") -> No
     with open(file_path, "w", encoding=encoding) as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-def save_file(data: str, file_path: str, encoding: str = "utf-8") -> None:
+def save_file(data: str, file_path: str | Path, encoding: str = "utf-8") -> None:
     with open(file_path, "w", encoding=encoding) as f:
         f.write(data)
 
@@ -234,56 +238,107 @@ def array_to_tsv(data: list[dict[str, Any]], headers: Optional[list[str]] = None
 
     return "\n".join(lines)
 
+def get_option(
+    args: Any, default_json_fields: list[str] | None = None
+) -> list[str]:
+    user_value = args.user
+    print(f'user_value: {user_value}')
+    if user_value is None:
+        user_option = ""
+    else:
+        user_option = user_value
+
+    limit_option: str
+    limit_value = args.limit
+    if limit_value is None:
+        if user_value is not None:
+            if user_value == "ykominami":
+                limit_value = 400
+        else:
+            limit_value = 400
+
+    if limit_value is None:
+        limit_option = ""
+    else:
+        limit_option = f"--limit {limit_value}"
+
+    print(f'limit_option: {limit_option}')
+    json_value = args.json
+    if json_value is not None:
+        json_option = f"--json {json_value}"
+    elif default_json_fields:
+        json_option = f"--json {','.join(default_json_fields)}"
+    else:
+        json_option = ""
+
+    print(f'json_option: {json_option}')
+
+    return [user_option, limit_option, json_option]
+
 def main() -> None:
-    command = 'gh repo list --limit 400 --json name,url,owner,nameWithOwner,parent,pullRequests,createdAt,description,diskUsage,hasProjectsEnabled,homepageUrl -q " .  '
-    repo_json_file = "repos.json"
-    repo_tsv_file = "repos.tsv"
-    out_dir = "_output"
+    load_dotenv()
+    repo_json_file = os.environ.get("REPO_JSON_FILE", "repos.json")
+    repo_tsv_file = os.environ.get("REPO_TSV_FILE", "repos.tsv")
+    out_dir = os.environ.get("OUTPUT_DIR", "_output")
+
+    cli = Cli()
+    args = cli.get_args()
+    if args.setup:
+        cli.setup()
+        return
+
+    # デフォルトのJSONフィールドがない場合はフォールバック
+    default_json_fields = cli.default_json_fields
+    if not default_json_fields:
+        default_json_fields = [
+            "name",
+            "url",
+            "owner",
+            "nameWithOwner",
+            "parent",
+            "pullRequests",
+            "createdAt",
+            "description",
+            "diskUsage",
+            "hasProjectsEnabled",
+            "homepageUrl",
+        ]
+    [user_option, limit_option, json_option] = get_option(args, default_json_fields)
+    command = f'gh repo list {user_option} {limit_option} {json_option} '
+    print(f'command: {command}')
+
     out_path = Path(out_dir)
     if not out_path.exists():
         out_path.mkdir(parents=True, exist_ok=True)
 
-    cli = Cli()
-    args = cli.get_args()
+    # --output引数が指定されていればそちらを使用
+    if args.output:
+        repo_json_file = args.output
+
     repo_json_file_path = out_path / repo_json_file
     if repo_json_file_path.exists() and not args.f:
         data = cast(list[dict[str, Any]], load_json_array(repo_json_file_path))
     else:
         raw = run_command_simple(command)
-        save_file(raw, repo_json_file)
+        # print(f'raw: {raw}')
         data = cast(list[dict[str, Any]], json.loads(raw))
+        save_file(raw, repo_json_file_path)
     repo_tsv_path = out_path / repo_tsv_file
     # repo_dict = array_to_dict(data, "name")
     # print(len(repo_dict))
-    tsv = array_to_tsv(data, ["isPrivate", "name", "url", "owner", "nameWithOwner", "parent", "pullRequests", "createdAt", "description", "diskUsage", "hasProjectsEnabled", "homepageUrl"])
-
-    save_file(tsv, str(repo_tsv_path))
-
-    items = tsv.split("\n")
-    headers, *rows = items
-    heads = headers.split("\t")
-    # print(heads)
-    # print(rows[0])
-    for item in rows:
-        fields = item.split("\t")
-        assoc = {x:y for x, y in zip(heads, fields)}
-        print(assoc)
-        # array = [[x,y] for x, y in zip(heads, fields)]
-        # print(array)
-
-
     '''
-        item = item.split("\t")
-        print(item)
-        name = item[0]
-        url = item[1]
-        owner = item[2]
-        nameWithOwner = item[3]
-        parent = item[4]
-        pullRequests = item[5]
-        createdAt = item[6]
-        description = item[7]
-        diskUsage = item[8]
-        hasProjectsEnabled = item[9]
-        homepageUrl = item[10]
+    tsv_headers = ["isPrivate", "name", "url", "owner", "nameWithOwner", "parent", "pullRequests", "createdAt", "description", "diskUsage", "hasProjectsEnabled", "homepageUrl"]
     '''
+    if args.json is None:
+        tsv_headers = cli.default_json_fields
+    else:
+        tsv_headers = args.json.split(",")
+
+    data_sorted = sorted(data, key=lambda x: x.get("createdAt", ""), reverse=True)
+    tsv_sorted = array_to_tsv(data_sorted, tsv_headers)
+
+    save_file(tsv_sorted, str(repo_tsv_path))
+
+    if args.v:
+        for item in data_sorted:
+            print(f'{item["name"]} {item["createdAt"]}')
