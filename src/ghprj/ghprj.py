@@ -1,11 +1,15 @@
-"""コマンドライン実行ユーティリティ"""
-
 import json
-import subprocess
 from pathlib import Path
 from typing import Any, Optional, cast
 
+"""コマンドライン実行ユーティリティ"""
+from ghprj.appconfig import AppConfig
+from ghprj.storex import Storex
+
 from ghprj.cli import Cli
+from ghprj.command_project import CommandProject
+from ghprj.command_user import CommandUser
+from ghprj.appstore import AppStore
 
 
 class Ghprj:
@@ -14,86 +18,6 @@ class Ghprj:
     def __init__(self) -> None:
         """Ghprjインスタンスを初期化する"""
         pass
-
-    def run_command(
-        self,
-        command: str | list[str],
-        shell: bool = False,
-        encoding: str = "utf-8",
-        timeout: Optional[int] = None,
-    ) -> tuple[str, int]:
-        """
-        コマンドラインを実行して、標準出力への出力を文字列として受け取る。
-
-        Args:
-            command: 実行するコマンド（文字列またはリスト）
-            shell: shell経由で実行するかどうか（デフォルト: False）
-            encoding: 出力のエンコーディング（デフォルト: utf-8）
-            timeout: タイムアウト秒数（デフォルト: None）
-
-        Returns:
-            (標準出力の文字列, 終了コード) のタプル
-
-        Raises:
-            subprocess.TimeoutExpired: タイムアウトが発生した場合
-            subprocess.SubprocessError: その他のサブプロセスエラー
-
-        Example:
-            >>> ghprj = Ghprj()
-            >>> output, return_code = ghprj.run_command("echo hello")
-            >>> print(output)  # "hello\\n"
-            >>> print(return_code)  # 0
-        """
-        try:
-            result = subprocess.run(
-                command,
-                shell=shell,
-                capture_output=True,
-                text=True,
-                encoding=encoding,
-                timeout=timeout,
-            )
-            return result.stdout, result.returncode
-        except subprocess.TimeoutExpired as e:
-            timeout_float = float(timeout) if timeout is not None else float(0)
-            raise subprocess.TimeoutExpired(
-                cmd=command,
-                timeout=timeout_float,
-                output=e.stdout.decode(encoding) if e.stdout else "",
-                stderr=e.stderr.decode(encoding) if e.stderr else "",
-            )
-        except subprocess.SubprocessError:
-            raise
-
-    def run_command_simple(self, command: str | list[str], shell: bool = False) -> str:
-        """
-        コマンドラインを実行して、標準出力への出力を文字列として受け取る（シンプル版）。
-        エラー時は例外を発生させる。
-
-        Args:
-            command: 実行するコマンド（文字列またはリスト）
-            shell: shell経由で実行するかどうか（デフォルト: False）
-
-        Returns:
-            標準出力の文字列
-
-        Raises:
-            subprocess.CalledProcessError: コマンドが非ゼロの終了コードで終了した場合
-
-        Example:
-            >>> ghprj = Ghprj()
-            >>> output = ghprj.run_command_simple("echo hello")
-            >>> print(output)  # "hello\\n"
-        """
-        result = subprocess.run(
-            command,
-            shell=shell,
-            capture_output=True,
-            text=True,
-            check=True,
-            encoding="utf-8",
-        )
-        return result.stdout
 
     def load_json_array(
         self, file_path: str | Path, encoding: str = "utf-8"
@@ -161,50 +85,6 @@ class Ghprj:
         """
         with open(file_path, "w", encoding=encoding) as f:
             f.write(data)
-
-    def array_to_dict(
-        self, data: list[dict[str, Any]], key: str
-    ) -> dict[str, dict[str, Any]]:
-        """
-        JSON形式文字列の配列から、指定文字列をキーとする連想配列に変換する。
-
-        Args:
-            data: 辞書のリスト（JSON配列をパースしたもの）
-            key: 連想配列のキーとして使用するフィールド名
-
-        Returns:
-            指定したキーをキーとし、元の要素を値とする連想配列（辞書）
-
-        Raises:
-            KeyError: 指定したキーが要素に存在しない場合
-            TypeError: 要素が辞書でない場合
-
-        Example:
-            >>> ghprj = Ghprj()
-            >>> data = [
-            ...     {"name": "repo1", "url": "https://example.com/repo1"},
-            ...     {"name": "repo2", "url": "https://example.com/repo2"}
-            ... ]
-            >>> result = ghprj.array_to_dict(data, "name")
-            >>> print(result["repo1"])  # {"name": "repo1", "url": "https://example.com/repo1"}
-        """
-        result: dict[str, dict[str, Any]] = {}
-        for item in data:
-            if not isinstance(item, dict):
-                raise TypeError(
-                    f"配列の要素は辞書である必要があります。現在の型: {type(item).__name__}"
-                )
-            if key not in item:
-                raise KeyError(
-                    f"キー '{key}' が要素に存在しません。要素のキー: {list(item.keys())}"
-                )
-            key_value = item[key]
-            if not isinstance(key_value, (str, int, float, bool)) or key_value is None:
-                raise ValueError(
-                    f"キー '{key}' の値は文字列、数値、真偽値である必要があります。現在の型: {type(key_value).__name__}"
-                )
-            result[str(key_value)] = item
-        return result
 
     def array_to_tsv(
         self, data: list[dict[str, Any]], headers: Optional[list[str]] = None
@@ -285,72 +165,32 @@ class Ghprj:
 
 def main() -> None:
     """CLIエントリポイント"""
-    command = 'gh repo list --limit 400 --json name,url,owner,nameWithOwner,parent,pullRequests,createdAt,description,diskUsage,hasProjectsEnabled,homepageUrl -q " .  '
-    repo_json_file = "repos.json"
-    repo_tsv_file = "repos.tsv"
-    out_dir = "_output"
-    out_path = Path(out_dir)
-    if not out_path.exists():
-        out_path.mkdir(parents=True, exist_ok=True)
+    Storex.set_file_type_dict(AppConfig.file_type_dict)
 
     ghprj = Ghprj()
-    cli = Cli()
+    appstore = AppStore("ghprj", AppConfig.file_assoc)
+    appstore.prepare_config_file_and_db_file()
+
+    cli = Cli(appstore, AppConfig.key)
     args = cli.get_args()
-    repo_json_file_path = out_path / repo_json_file
-    if repo_json_file_path.exists() and not args.f:
-        data = cast(list[dict[str, Any]], ghprj.load_json_array(repo_json_file_path))
-    else:
-        raw = ghprj.run_command_simple(command)
-        ghprj.save_file(raw, repo_json_file)
-        data = cast(list[dict[str, Any]], json.loads(raw))
-    repo_tsv_path = out_path / repo_tsv_file
-    # repo_dict = ghprj.array_to_dict(data, "name")
-    # print(len(repo_dict))
-    tsv = ghprj.array_to_tsv(
-        data,
-        [
-            "isPrivate",
-            "name",
-            "url",
-            "owner",
-            "nameWithOwner",
-            "parent",
-            "pullRequests",
-            "createdAt",
-            "description",
-            "diskUsage",
-            "hasProjectsEnabled",
-            "homepageUrl",
-        ],
-    )
 
-    ghprj.save_file(tsv, str(repo_tsv_path))
+    if args.setup:
+        cli.setup(AppConfig.key, AppConfig.default_json_fields)
+        return
 
-    items = tsv.split("\n")
-    headers_line, *rows = items
-    heads = headers_line.split("\t")
-    # print(heads)
-    # print(rows[0])
-    for item in rows:
-        fields = item.split("\t")
-        assoc = {x: y for x, y in zip(heads, fields)}
-        print(assoc)
-        # array = [[x,y] for x, y in zip(heads, fields)]
-        # print(array)
+    cli.load_file()
+    json_fields = cli.get_from_config("config", AppConfig.key)
+    command = CommandProject(appstore, json_fields)
+
+    fetch_assoc = appstore.get_assoc_from_db("fetch")
+    [count, fetch_assoc] = command.get_next_count(fetch_assoc)
+    appstore.output_db("fetch", fetch_assoc)
+
+    assoc = command.all_project(args, appstore, count)
+    appstore.output_db("db", assoc)
 
 
-    '''
-        item = item.split("\t")
-        print(item)
-        name = item[0]
-        url = item[1]
-        owner = item[2]
-        nameWithOwner = item[3]
-        parent = item[4]
-        pullRequests = item[5]
-        createdAt = item[6]
-        description = item[7]
-        diskUsage = item[8]
-        hasProjectsEnabled = item[9]
-        homepageUrl = item[10]
-    '''
+def get_user() -> None:
+    command = CommandUser()
+    user = command.get_user()
+    print(user)
