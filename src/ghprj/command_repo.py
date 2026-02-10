@@ -8,7 +8,7 @@ from ghprj.appconfig import AppConfig
 from ghprj.timex import Timex
 
 
-class CommandProject(Command):
+class CommandRepo(Command):
     def __init__(self, appstore: AppStore, json_fields: [str]) -> None:
         self.appstore = appstore
         self.json_fields = json_fields
@@ -30,7 +30,7 @@ class CommandProject(Command):
             json_option = f"--json {args.json}"
 
         command = f"gh repo list {limit_option} {json_option} {user_option}"
-        print(command)
+        # print(command)
         return command
 
     def get_next_count(self, fetch_assoc: dict[int, str]) -> dict[int, str]:
@@ -50,15 +50,50 @@ class CommandProject(Command):
 
         return [next_count, fetch_assoc]
 
-    def isUpdated(self, old_item: dict[str, str], new_item: dict[str, str]) -> bool:
+    class UpdateInfo:
+        def make_item(self, diff: bool, key: str, old_value: str, new_value: str):
+            return {
+                'diff': diff,
+                'key': key,
+                'old_value':old_value,
+                'new_value': new_value
+            }
+
+        def __init__(self):
+            self.item_array: list[dict[str, str]] = []
+
+        def add_item(self, diff: bool, key: str, old_value: str, new_value: str):
+            self.item_array.append(self.make_item(diff, key, old_value, new_value))
+
+        def get_result(self) -> bool:
+            for item in self.item_array:
+                if item['diff']:
+                    return True
+            return False
+
+        def get_item_array(self) -> list[dict[str, str]]:
+            return self.item_array
+
+    def isUpdated(self, name: str,old_item: dict[str, str], new_item: dict[str, str]) -> bool:
+        updateinfo = self.UpdateInfo()
         for key in AppConfig.default_json_fields:
+            old_value = old_item[key]
+            new_value = new_item[key]
             if old_item[key] != new_item[key]:
-                return True
-        return False
+                diff = True
+            else:
+                diff = False
+            updateinfo.add_item(diff, key, old_value, new_value)
+        item_array = updateinfo.get_item_array()
+        result = updateinfo.get_result()
+        # print(f'isUpdated name={name} result={result} { json.dumps(item_array, indent=2) }')
+        print(f'isUpdated name={name}')
+        return updateinfo.get_result()
 
     def update(
         self, old_assoc: dict[str, dict[str, str]], assoc: dict[str, dict[str, str]]
     ) -> dict[str, dict[str, str]]:
+        #
         new_assoc = {}
 
         assoc_names = list(assoc.keys())
@@ -67,11 +102,16 @@ class CommandProject(Command):
             if old_assoc_name in assoc_names:
                 old_item = old_assoc[old_assoc_name]
                 new_item = assoc[old_assoc_name]
-                if self.isUpdated(old_item, new_item):
+                result = self.isUpdated(old_assoc_name, old_item, new_item)
+                print(f'U old_assoc_name={old_assoc_name} result={result}')
+                if result:
                     new_assoc[old_assoc_name] = new_item
+                    print(f'U-T new_assoc[old_assoc_name][count]={new_assoc[old_assoc_name]['count']}')
+                    # breakpoint()
                 else:
                     new_assoc[old_assoc_name] = old_item
-
+                    print(f'U-F old_assoc[old_assoc_name][count]={old_assoc[old_assoc_name]['count']}')
+                    # breakpoint()
                 assoc_names.remove(old_assoc_name)
             else:
                 new_assoc[old_assoc_name] = old_item
@@ -83,11 +123,9 @@ class CommandProject(Command):
 
         return new_assoc
 
-    def all_project(
+    def get_all_repos(
         self, args: argparse.Namespace, appstore: AppStore, count: int
     ) -> str:
-        # fetch_assoc = self.appstore.assoc['db']['fetch']['value']
-
         command_line = self.get_command_for_project(args)
         json_str = self.run_command_simple(command_line)
         json_array = json.loads(json_str)
@@ -95,9 +133,18 @@ class CommandProject(Command):
         for name, item in list(assoc.items()):
             item["count"] = count
             item["valid"] = True
+            item["field_1"] = ''
+            item["field_2"] = ''
+            item["field_3"] = ''
             assoc[name] = item
 
         old_assoc = appstore.get_assoc_from_db("db")
         new_assoc = self.update(old_assoc, assoc)
-        appstore.output_db("db", new_assoc)
-        return assoc
+        '''
+        for new_name in list(new_assoc.keys()):
+            new_item = new_assoc[new_name]
+            count_v = 'count'
+            print(f'new_name={new_name} new_assoc[new_name][{count_v}]={new_assoc[new_name][count_v]}')
+        '''
+
+        return new_assoc
