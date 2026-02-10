@@ -35,6 +35,8 @@ dev = [
 
 [project.scripts]
 ghprj = "ghprj:main"
+get_user = "ghprj:get_user"
+
 yklibpy-main = "yklibpy:main"
 yklibpy-xmain = "yklibpy:xmain"
 yklibpy-app = "yklibpy:app.main"
