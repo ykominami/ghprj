@@ -1,6 +1,6 @@
+import logging
 import subprocess
 from typing import Any, Optional
-
 
 class Command:
     def __init__():
@@ -76,15 +76,26 @@ class Command:
             >>> output = ghprj.run_command_simple("echo hello")
             >>> print(output)  # "hello\\n"
         """
-        result = subprocess.run(
-            command,
-            shell=shell,
-            capture_output=True,
-            text=True,
-            check=True,
-            encoding="utf-8",
-        )
-        return result.stdout
+        try:
+            result = subprocess.run(
+                command,
+                shell=shell,
+                capture_output=True,
+                text=True,
+                check=True,
+                encoding="utf-8",
+            )
+            return result.stdout
+        except subprocess.CalledProcessError as e:
+            logging.exception(e)
+            '''
+            raise subprocess.CalledProcessError(
+                returncode=e.returncode,
+                cmd=command,
+                output=e.stdout.decode("utf-8") if e.stdout else "",
+                stderr=e.stderr.decode("utf-8") if e.stderr else "",
+            )
+            '''
 
     def array_to_dict(
         self, data: list[dict[str, Any]], key: str
