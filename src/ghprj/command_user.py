@@ -5,7 +5,7 @@ class CommandUser(Command):
     def __init__(self):
         pass
 
-    def get_user(self) -> str:
+    def run(self) -> str:
         command_line = f'gh api user --jq ".login"'
         str = self.run_command_simple(command_line)
         # print(str)
