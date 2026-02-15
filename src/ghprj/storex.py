@@ -28,7 +28,7 @@ class Storex:
 
     def load(self) -> dict[str, Any]:
         if self.file_path.exists():
-            print(f'file_path={self.file_path} load file_path={self.file_path}')
+            # print(f'file_path={self.file_path} load file_path={self.file_path}')
             with open(self.file_path, "r", encoding="utf-8") as f:
                 if self.file_type == AppConfig.FILE_TYPE_YAML:
                     self.store = yaml.safe_load(f) or {}
@@ -44,7 +44,7 @@ class Storex:
         self.file_path.parent.mkdir(parents=True, exist_ok=True)
         with open(self.file_path, "w", encoding="utf-8") as f:
             if self.file_type == AppConfig.FILE_TYPE_YAML:
-                print(f'Storex output yaml self.file_path={self.file_path} data')
+                # print(f'Storex output yaml self.file_path={self.file_path} data')
                 yaml.dump(data, f, allow_unicode=True)
             elif self.file_type == AppConfig.FILE_TYPE_JSON:
                 json.dump(data, f, ensure_ascii=False, indent=2)

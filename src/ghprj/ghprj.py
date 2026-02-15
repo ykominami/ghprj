@@ -41,10 +41,10 @@ class Ghprj:
 
         fetch_assoc = appstore.get_assoc_from_db("fetch")
         [count, fetch_assoc] = command.get_next_count(fetch_assoc)
-        appstore.output_db("fetch", fetch_assoc)
-
-        new_assoc = command.get_all_repos(args, appstore, count)
-        appstore.output_db("db", new_assoc)
+        if count == 1 or args.f:
+            appstore.output_db("fetch", fetch_assoc)
+            new_assoc = command.get_all_repos(args, appstore, count)
+            appstore.output_db("db", new_assoc)
 
 def main() -> None:
     ghprj = Ghprj()
