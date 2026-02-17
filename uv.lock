@@ -307,7 +307,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "toml", specifier = ">=0.10.2" },
-    { name = "yklibpy", directory = "../yklibpy" },
+    { name = "yklibpy", editable = "../yklibpy" },
 ]
 
 [package.metadata.requires-dev]
@@ -1091,8 +1091,8 @@ wheels = [
 
 [[package]]
 name = "yklibpy"
-version = "0.2.0"
-source = { directory = "../yklibpy" }
+version = "0.2.1"
+source = { editable = "../yklibpy" }
 dependencies = [
     { name = "bs4" },
     { name = "chardet" },

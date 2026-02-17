@@ -5,7 +5,7 @@ from yklibpy.cli import Cli
 class Clix:
     def __init__(self, description: str, command_dict: dict[str, Any]) -> None:
         self.cli = Cli(description)
-    
+
         self.parser = self.cli.get_parser()
 
         subparsers = self.cli.get_subparsers('command')

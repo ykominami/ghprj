@@ -71,3 +71,6 @@ ignore = [ "E501",]
 
 [tool.hatch.build.targets.wheel]
 packages = [ "src/ghprj",]
+
+[tool.uv.sources]
+yklibpy = { path = "../yklibpy", editable = true }

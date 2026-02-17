@@ -2,10 +2,13 @@ import argparse
 import json
 from hmac import new
 
-from ghprj.appstore import AppStore
-from ghprj.command import Command
-from ghprj.appconfig import AppConfig
-from ghprj.timex import Timex
+# from ghprj.appstore import AppStore
+from yklibpy.db.appstore import AppStore
+# from ghprj.command import Command
+from yklibpy.command import Command
+from yklibpy.config.appconfig import AppConfig
+#from ghprj.timex import Timex
+from yklibpy.common.timex import Timex
 
 
 class CommandRepo(Command):
