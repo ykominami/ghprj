@@ -3,40 +3,38 @@ from pathlib import Path
 from typing import Any, Optional, cast
 
 """コマンドライン実行ユーティリティ"""
-from ghprj.appconfig import AppConfig
-from ghprj.storex import Storex
 
-from ghprj.cli import Cli
-from ghprj.command_repo import CommandRepo
-from ghprj.command_user import CommandUser
+from ghprj.clix import Clix
+from ghprj.appconfigx import AppConfigx
 from ghprj.command_setup import CommandSetup
-from ghprj.appstore import AppStore
+from ghprj.command_repo import CommandRepo
+from yklibpy.db.storex import Storex
+from yklibpy.db.appstore import AppStore
 
 
 class Ghprj:
     """GitHub リポジトリメタデータ抽出・変換ユーティリティクラス"""
 
-    def __init__(self) -> None:
-        """Ghprjインスタンスを初期化する"""
-        pass
-
-    def get_all_repos(self) -> None:
-        """CLIエントリポイント"""
-        Storex.set_file_type_dict(AppConfig.file_type_dict)
-
-        appstore = AppStore("ghprj", AppConfig.file_assoc)
+    @classmethod
+    def init_appsstore(cls) -> AppStore:
+        Storex.set_file_type_dict(AppConfigx.file_type_dict)
+        appstore = AppStore("ghprj", AppConfigx.file_assoc)
         appstore.prepare_config_file_and_db_file()
+        return appstore
 
-        cli = Cli()
-        args = cli.get_args()
+    @classmethod
+    def setup(cls, args: argparse.Namespace) -> None:
+        # print(args)
+        appstore = Ghprj.init_appsstore()
+        command = CommandSetup(appstore)
+        command.run(AppConfigx.key, AppConfigx.default_json_fields)
 
-        if args.setup:
-            command = CommandSetup(appstore)
-            command.run(AppConfig.key, AppConfig.default_json_fields)
-            return
-
+    @classmethod
+    def list_repos(cls, args: argparse.Namespace) -> None:
+        # print(args)
+        appstore = Ghprj.init_appsstore()
         appstore.load_file()
-        json_fields = appstore.get_from_config("config", AppConfig.key)
+        json_fields = appstore.get_from_config("config", AppConfigx.key)
         command = CommandRepo(appstore, json_fields)
 
         fetch_assoc = appstore.get_assoc_from_db("fetch")
@@ -46,9 +44,17 @@ class Ghprj:
             new_assoc = command.get_all_repos(args, appstore, count)
             appstore.output_db("db", new_assoc)
 
+        if args.v:
+            appstore.show_db("db")
+ 
+
 def main() -> None:
-    ghprj = Ghprj()
-    ghprj.get_all_repos()
+    command_dict = {'setup': Ghprj.setup, 'list': Ghprj.list_repos}
+    """CLIエントリポイント"""
+    clix = Clix('GitHub Repository list', command_dict)
+
+    args = clix.parse_args()
+    args.func(args)
 
 def get_user() -> None:
     command = CommandUser()

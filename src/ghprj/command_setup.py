@@ -1,5 +1,6 @@
-from ghprj.command import Command
-from ghprj.appstore import AppStore
+# from ghprj.command import Command
+from yklibpy.command import Command
+from yklibpy.db.appstore import AppStore
 from ghprj.command_user import CommandUser
 
 class CommandSetup(Command):

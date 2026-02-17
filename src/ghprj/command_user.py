@@ -1,4 +1,4 @@
-from ghprj.command import Command
+from yklibpy.command import Command
 
 
 class CommandUser(Command):
