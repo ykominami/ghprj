@@ -1,12 +1,13 @@
-from yklibpy.command import Command
-
+from yklibpy.command.command import Command
+from yklibpy.common.util import Util
 
 class CommandUser(Command):
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     def run(self) -> str:
-        command_line = f'gh api user --jq ".login"'
+        command_line = 'gh api user --jq ".login"'
         str = self.run_command_simple(command_line)
-        # print(str)
-        return str
+        user = Util.remove_whitespace(str)
+
+        return user

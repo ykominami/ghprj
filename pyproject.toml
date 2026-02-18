@@ -46,9 +46,6 @@ yklibpy-app = "yklibpy:app.main"
 Homepage = "https://github.com/ykominami/yklibpy"
 Repository = "https://github.com/ykominami/yklibpy"
 
-[tool.uv.sources]
-yklibpy = { path = "../yklibpy" }
-
 [tool.black]
 line-length = 88
 target-version = [ "py314",]
