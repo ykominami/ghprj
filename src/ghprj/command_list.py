@@ -1,21 +1,21 @@
 import argparse
 import json
-from hmac import new
+from typing import Any
 
-# from ghprj.appstore import AppStore
-from yklibpy.db.appstore import AppStore
-# from ghprj.command import Command
 from yklibpy.command import Command
-from yklibpy.config.appconfig import AppConfig
-#from ghprj.timex import Timex
 from yklibpy.common.timex import Timex
+from yklibpy.config.appconfig import AppConfig
+from yklibpy.db.appstore import AppStore
 
 
-class CommandRepo(Command):
-    def __init__(self, appstore: AppStore, json_fields: [str]) -> None:
+class CommandList(Command):
+    def __init__(self, appstore: AppStore, json_fields: list[str], user: str | None ) -> None:
         self.appstore = appstore
         self.json_fields = json_fields
-        self.user = self.appstore.get_from_config("config", "USER")
+        if user is None or user == "":
+            self.user = self.appstore.get_from_config("config", "USER")
+        else:
+            self.user = user
 
     def get_command_for_project(self, args: argparse.Namespace) -> str:
         user_option = ""
@@ -36,7 +36,7 @@ class CommandRepo(Command):
         # print(command)
         return command
 
-    def get_next_count(self, fetch_assoc: dict[int, str]) -> dict[int, str]:
+    def get_next_count(self, fetch_assoc: dict[int, str]) -> tuple[int, dict[int, str]]:
         if fetch_assoc is None:
             num = 1
             fetch_assoc = {num: ""}
@@ -51,10 +51,10 @@ class CommandRepo(Command):
             next_count = num + 1
             fetch_assoc[next_count] = Timex.get_now()
 
-        return [next_count, fetch_assoc]
+        return (next_count, fetch_assoc)
 
     class UpdateInfo:
-        def make_item(self, diff: bool, key: str, old_value: str, new_value: str):
+        def make_item(self, diff: bool, key: str, old_value: str, new_value: str) -> dict[str, str | bool]:
             return {
                 'diff': diff,
                 'key': key,
@@ -62,10 +62,10 @@ class CommandRepo(Command):
                 'new_value': new_value
             }
 
-        def __init__(self):
-            self.item_array: list[dict[str, str]] = []
+        def __init__(self) -> None:
+            self.item_array: list[dict[str, str | bool]] = []
 
-        def add_item(self, diff: bool, key: str, old_value: str, new_value: str):
+        def add_item(self, diff: bool, key: str, old_value: str, new_value: str) -> None:
             self.item_array.append(self.make_item(diff, key, old_value, new_value))
 
         def get_result(self) -> bool:
@@ -74,10 +74,10 @@ class CommandRepo(Command):
                     return True
             return False
 
-        def get_item_array(self) -> list[dict[str, str]]:
+        def get_item_array(self) -> list[dict[str, str | bool]]:
             return self.item_array
 
-    def isUpdated(self, name: str,old_item: dict[str, str], new_item: dict[str, str]) -> bool:
+    def is_updated(self, name: str, old_item: dict[str, Any], new_item: dict[str, Any]) -> bool:
         updateinfo = self.UpdateInfo()
         for key in AppConfig.default_json_fields:
             old_value = old_item[key]
@@ -87,15 +87,13 @@ class CommandRepo(Command):
             else:
                 diff = False
             updateinfo.add_item(diff, key, old_value, new_value)
-        item_array = updateinfo.get_item_array()
-        result = updateinfo.get_result()
-        # print(f'isUpdated name={name} result={result} { json.dumps(item_array, indent=2) }')
-        print(f'isUpdated name={name}')
+        # print(f'is_updated name={name} result={updateinfo.get_result()} { json.dumps(updateinfo.get_item_array(), indent=2) }')
+        # print(f'is_updated name={name}')
         return updateinfo.get_result()
 
     def update(
-        self, old_assoc: dict[str, dict[str, str]], assoc: dict[str, dict[str, str]]
-    ) -> dict[str, dict[str, str]]:
+        self, old_assoc: dict[str, dict[str, Any]], assoc: dict[str, dict[str, Any]]
+    ) -> dict[str, dict[str, Any]]:
         #
         new_assoc = {}
 
@@ -105,15 +103,15 @@ class CommandRepo(Command):
             if old_assoc_name in assoc_names:
                 old_item = old_assoc[old_assoc_name]
                 new_item = assoc[old_assoc_name]
-                result = self.isUpdated(old_assoc_name, old_item, new_item)
-                print(f'U old_assoc_name={old_assoc_name} result={result}')
+                result = self.is_updated(old_assoc_name, old_item, new_item)
+                # print(f'U old_assoc_name={old_assoc_name} result={result}')
                 if result:
                     new_assoc[old_assoc_name] = new_item
-                    print(f'U-T new_assoc[old_assoc_name][count]={new_assoc[old_assoc_name]['count']}')
+                    # print(f'U-T new_assoc[old_assoc_name][count]={new_assoc[old_assoc_name]['count']}')
                     # breakpoint()
                 else:
                     new_assoc[old_assoc_name] = old_item
-                    print(f'U-F old_assoc[old_assoc_name][count]={old_assoc[old_assoc_name]['count']}')
+                    #print(f'U-F old_assoc[old_assoc_name][count]={old_assoc[old_assoc_name]['count']}')
                     # breakpoint()
                 assoc_names.remove(old_assoc_name)
             else:
@@ -128,7 +126,7 @@ class CommandRepo(Command):
 
     def get_all_repos(
         self, args: argparse.Namespace, appstore: AppStore, count: int
-    ) -> str:
+    ) -> dict[str, dict[str, Any]]:
         command_line = self.get_command_for_project(args)
         json_str = self.run_command_simple(command_line)
         json_array = json.loads(json_str)

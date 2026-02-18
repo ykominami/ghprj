@@ -1,18 +1,15 @@
 import argparse
 from typing import Any
+
 from yklibpy.cli import Cli
 
 class Clix:
     def __init__(self, description: str, command_dict: dict[str, Any]) -> None:
         self.cli = Cli(description)
 
-        self.parser = self.cli.get_parser()
-
-        subparsers = self.cli.get_subparsers('command')
-
+        subparsers: Any = self.cli.get_subparsers('command')
         # サブコマンド "setup"
         p_setup = subparsers.add_parser("setup", help="Setup for config file")
-        # setup()
         p_setup.set_defaults(func=command_dict['setup'])
         p_setup.add_argument("--user", help="GitHub user name")
 
@@ -30,9 +27,9 @@ class Clix:
             "--output", default=default_output_file, help="Output file name"
         )
 
-    def get_subparsers(self) -> argparse.ArgumentParser:
-        return self.cli.get_subparsers()
+    def get_subparsers(self, name: str) -> Any:
+        return self.cli.get_subparsers(name)
 
     def parse_args(self) -> argparse.Namespace:
-        return self.cli.parse_args()
+        return self.cli.parse_args()  # type: ignore[no-untyped-call, no-any-return]
 
