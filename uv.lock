@@ -278,7 +278,7 @@ wheels = [
 ]
 
 [[package]]
-name = "ghprj"
+name = "ghrepo"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
@@ -1091,7 +1091,7 @@ wheels = [
 
 [[package]]
 name = "yklibpy"
-version = "0.2.5"
+version = "0.2.9"
 source = { editable = "../yklibpy" }
 dependencies = [
     { name = "bs4" },

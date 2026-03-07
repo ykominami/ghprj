@@ -1,5 +1,6 @@
 from yklibpy.config.appconfig import AppConfig
 
+
 class AppConfigx(AppConfig):
     default_json_fields_in_db = [
         "name",
@@ -32,7 +33,4 @@ class AppConfigx(AppConfig):
         "hasProjectsEnabled",
         "homepageUrl",
     ]
-    fetch_item = {
-        "date": "",
-    }
     key = "JSON_FIELDS"

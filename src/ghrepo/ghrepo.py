@@ -3,18 +3,19 @@
 
 import argparse
 
+from yklibpy.command.fetchcount import FetchCount
 from yklibpy.common.util import Util
 from yklibpy.db.appstore import AppStore
 from yklibpy.db.storex import Storex
 
-from ghprj.appconfigx import AppConfigx
-from ghprj.clix import Clix
-from ghprj.command_list import CommandList
-from ghprj.command_setup import CommandSetup
-from ghprj.command_user import CommandUser
+from ghrepo.appconfigx import AppConfigx
+from ghrepo.clix import Clix
+from ghrepo.command_list import CommandList
+from ghrepo.command_setup import CommandSetup
+from ghrepo.command_user import CommandUser
 
 
-class Ghprj:
+class Ghrepo:
     """GitHub リポジトリメタデータ抽出・変換ユーティリティクラス"""
 
     # s = "hello\nworld\r\nfoo\n"
@@ -23,16 +24,16 @@ class Ghprj:
     def init_appstore(cls, normalized_user: str | None) -> AppStore:
         Storex.set_file_type_dict(AppConfigx.file_type_dict)
 
-        # print(f'A Ghprj init_appstore normalized_user={normalized_user}')
+        # print(f'A Ghrepo init_appstore normalized_user={normalized_user}')
         if normalized_user is None:
             user = CommandUser().run()
             normalized_user = Util().normalize_string(user)
-            # rint(f'B Ghprj init_appstore user={normalized_user}')
+            # rint(f'B Ghrepo init_appstore user={normalized_user}')
 
-        # print(f'C Ghprj init_appstore user={normalized_user}')
+        # print(f'C Ghrepo init_appstore user={normalized_user}')
 
-        appstore = AppStore("ghprj", AppConfigx.file_assoc, normalized_user)  # type: ignore[arg-type]
-        appstore.prepare_config_file_and_db_file()  # type: ignore[no-untyped-call]
+        appstore = AppStore("ghrepo", AppConfigx.file_assoc, normalized_user)
+        appstore.prepare_config_file_and_db_file()
         return appstore
 
     @classmethod
@@ -41,7 +42,7 @@ class Ghprj:
         if normalized_user is None:
             normalized_user = CommandUser().run()
             normalized_user = Util().normalize_string(normalized_user)
-            # print(f'D Ghprj setup normalized_user={normalized_user}')
+            # print(f'D Ghrepo setup normalized_user={normalized_user}')
 
         appsstore = cls.init_appstore(normalized_user)
         command = CommandSetup(appsstore)
@@ -51,14 +52,14 @@ class Ghprj:
     def list_repos(cls, args: argparse.Namespace) -> None:
         normalized_user = Util().normalize_string(args.user)
         appsstore = cls.init_appstore(normalized_user)
-        appsstore.load_file()  # type: ignore[no-untyped-call]
+        appsstore.load_file_all()
         json_fields = appsstore.get_from_config("config", AppConfigx.key)
         command = CommandList(appsstore, json_fields, args.user)
 
-        fetch_assoc = appsstore.get_assoc_from_db("fetch")
-        [count, fetch_assoc] = command.get_next_count(fetch_assoc)
+        fetch_count = FetchCount(True, False, appsstore)
+        count = fetch_count.get()
         if count == 1 or args.f:
-            appsstore.output_db("fetch", fetch_assoc)  # type: ignore[arg-type]
+            fetch_count.output_db()
             new_assoc = command.get_all_repos(args, appsstore, count)
             appsstore.output_db("db", new_assoc)
         if args.v:
@@ -66,7 +67,7 @@ class Ghprj:
  
 
 def main() -> None:
-    command_dict = {'setup': Ghprj.setup, 'list': Ghprj.list_repos}
+    command_dict = {'setup': Ghrepo.setup, 'list': Ghrepo.list_repos}
     """CLIエントリポイント"""
     clix = Clix('GitHub Repository list', command_dict)
 

@@ -3,6 +3,7 @@ from typing import Any
 
 from yklibpy.cli import Cli
 
+
 class Clix:
     def __init__(self, description: str, command_dict: dict[str, Any]) -> None:
         self.cli = Cli(description)
@@ -31,5 +32,5 @@ class Clix:
         return self.cli.get_subparsers(name)
 
     def parse_args(self) -> argparse.Namespace:
-        return self.cli.parse_args()  # type: ignore[no-untyped-call, no-any-return]
+        return self.cli.parse_args()
 
