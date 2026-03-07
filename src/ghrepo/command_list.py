@@ -3,8 +3,6 @@ import json
 from typing import Any
 
 from yklibpy.command import Command
-from yklibpy.common.timex import Timex
-from yklibpy.config.appconfig import AppConfig
 from yklibpy.db.appstore import AppStore
 
 
@@ -36,23 +34,6 @@ class CommandList(Command):
         # print(command)
         return command
 
-    def get_next_count(self, fetch_assoc: dict[int, str]) -> tuple[int, dict[int, str]]:
-        if fetch_assoc is None:
-            num = 1
-            fetch_assoc = {num: ""}
-            next_count = num
-        else:
-            num = 0
-            for item in fetch_assoc:
-                item_num = int(item)
-                if item_num > num:
-                    num = item_num
-
-            next_count = num + 1
-            fetch_assoc[next_count] = Timex.get_now()
-
-        return (next_count, fetch_assoc)
-
     class UpdateInfo:
         def make_item(self, diff: bool, key: str, old_value: str, new_value: str) -> dict[str, str | bool]:
             return {
@@ -79,7 +60,7 @@ class CommandList(Command):
 
     def is_updated(self, name: str, old_item: dict[str, Any], new_item: dict[str, Any]) -> bool:
         updateinfo = self.UpdateInfo()
-        for key in AppConfig.default_json_fields:
+        for key in self.json_fields:
             old_value = old_item[key]
             new_value = new_item[key]
             if old_item[key] != new_item[key]:
@@ -124,6 +105,10 @@ class CommandList(Command):
 
         return new_assoc
 
+    @staticmethod
+    def array_to_dict(array: list[dict[str, Any]], key: str) -> dict[str, dict[str, Any]]:
+        return {item[key]: item for item in array}
+
     def get_all_repos(
         self, args: argparse.Namespace, appstore: AppStore, count: int
     ) -> dict[str, dict[str, Any]]:
@@ -139,7 +124,7 @@ class CommandList(Command):
             item["field_3"] = ''
             assoc[name] = item
 
-        old_assoc = appstore.get_assoc_from_db("db")
+        old_assoc = appstore.get_file_assoc_from_db("db")
         new_assoc = self.update(old_assoc, assoc)
         '''
         for new_name in list(new_assoc.keys()):

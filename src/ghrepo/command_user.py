@@ -1,6 +1,7 @@
 from yklibpy.command.command import Command
 from yklibpy.common.util import Util
 
+
 class CommandUser(Command):
     def __init__(self) -> None:
         pass
