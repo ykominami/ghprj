@@ -12,7 +12,8 @@ from ghrepo.appconfigx import AppConfigx
 from ghrepo.clix import Clix
 from ghrepo.command_list import CommandList
 from ghrepo.command_setup import CommandSetup
-from ghrepo.command_user import CommandUser
+# from ghrepo.command_user import CommandUser
+from yklibpy.command.command_gh_user import CommandGhUser
 
 
 class Ghrepo:
@@ -26,11 +27,12 @@ class Ghrepo:
 
         # print(f'A Ghrepo init_appstore normalized_user={normalized_user}')
         if normalized_user is None:
-            user = CommandUser().run()
-            normalized_user = Util().normalize_string(user)
-            # rint(f'B Ghrepo init_appstore user={normalized_user}')
+            user = CommandGhUser().run()
+            if Util.is_empty(user):
+                user = CommandGhUser.DEFAULT_VALUE_USER
+                print(f"user={user}")
 
-        # print(f'C Ghrepo init_appstore user={normalized_user}')
+            normalized_user = Util.normalize_string(user)
 
         appstore = AppStore("ghrepo", AppConfigx.file_assoc, normalized_user)
         appstore.prepare_config_file_and_db_file()
@@ -38,19 +40,13 @@ class Ghrepo:
 
     @classmethod
     def setup(cls, args: argparse.Namespace) -> None:
-        normalized_user = Util().normalize_string(args.user)
-        if normalized_user is None:
-            normalized_user = CommandUser().run()
-            normalized_user = Util().normalize_string(normalized_user)
-            # print(f'D Ghrepo setup normalized_user={normalized_user}')
-
-        appsstore = cls.init_appstore(normalized_user)
+        appsstore = cls.init_appstore(args.user)
         command = CommandSetup(appsstore)
         command.run(AppConfigx.key, AppConfigx.default_json_fields)
 
     @classmethod
     def list_repos(cls, args: argparse.Namespace) -> None:
-        normalized_user = Util().normalize_string(args.user)
+        normalized_user = Util.normalize_string(args.user)
         appsstore = cls.init_appstore(normalized_user)
         appsstore.load_file_all()
         json_fields = appsstore.get_from_config("config", AppConfigx.key)
