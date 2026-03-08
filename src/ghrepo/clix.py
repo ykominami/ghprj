@@ -8,18 +8,18 @@ class Clix:
     def __init__(self, description: str, command_dict: dict[str, Any]) -> None:
         self.cli = Cli(description)
 
-        subparsers: Any = self.cli.get_subparsers('command')
+        subparsers: Any = self.cli.get_subparsers("command")
         # サブコマンド "setup"
         p_setup = subparsers.add_parser("setup", help="Setup for config file")
-        p_setup.set_defaults(func=command_dict['setup'])
+        p_setup.set_defaults(func=command_dict["setup"])
         p_setup.add_argument("--user", help="GitHub user name")
 
         # サブコマンド "list"
         p_list = subparsers.add_parser("list", help="list all repositorie)s")
-        p_list.set_defaults(func=command_dict['list'])
+        p_list.set_defaults(func=command_dict["list"])
 
         p_list.add_argument("-f", action="store_true", help="force download")
-        p_list.add_argument("-v", action="store_true", help="verbose")
+        p_list.add_argument("-v", "--verbose", action="store_true", help="verbose")
         p_list.add_argument("--user", help="GitHub user name")
         p_list.add_argument("--limit", type=int, help="limit the number of repos")
         p_list.add_argument("--json", type=str, help="json output")
@@ -27,6 +27,12 @@ class Clix:
         p_list.add_argument(
             "--output", default=default_output_file, help="Output file name"
         )
+
+        # サブコマンド "fix"
+        p_fix = subparsers.add_parser("fix", help="fix stored repository snapshots")
+        p_fix.set_defaults(func=command_dict["fix"])
+        p_fix.add_argument("--user", help="GitHub user name")
+        p_fix.add_argument("--verbose", action="store_true", help="verbose")
 
     def get_subparsers(self, name: str) -> Any:
         return self.cli.get_subparsers(name)
