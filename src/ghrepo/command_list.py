@@ -127,6 +127,9 @@ class CommandList(Command):
     def get_fetch_store(self) -> Storex:
         return self._get_store(AppConfig.BASE_NAME_FETCH)
 
+    def get_db_store(self) -> Storex:
+        return self._get_store("db")
+
     def get_fetch_path(self) -> Path:
         return self.get_fetch_store().get_path()
 
@@ -156,6 +159,12 @@ class CommandList(Command):
             return {}
         return self.coerce_fetch_assoc(loaded_value)
 
+    def load_latest_assoc(self) -> dict[str, dict[str, Any]]:
+        loaded_value = self.get_db_store().load()
+        if not isinstance(loaded_value, dict):
+            return {}
+        return cast(dict[str, dict[str, Any]], loaded_value)
+
     def output_fetch_assoc(self, fetch_assoc: dict[int, str]) -> None:
         self.appstore.output_db(AppConfig.BASE_NAME_FETCH, fetch_assoc)
         self._set_db_value(AppConfig.BASE_NAME_FETCH, fetch_assoc)
@@ -167,7 +176,7 @@ class CommandList(Command):
         max_repolist_count = max(repolist_counts, default=0)
         return max(max_fetch_count, max_repolist_count) + 1
 
-    def get_command_for_project(self, args: argparse.Namespace) -> str:
+    def get_command_for_repository(self, args: argparse.Namespace) -> str:
         target_user = self.config_user
         if args.user is not None and args.user != "":
             target_user = args.user
@@ -195,7 +204,7 @@ class CommandList(Command):
     ) -> dict[str, dict[str, Any]]:
         del appstore
 
-        command_line = self.get_command_for_project(args)
+        command_line = self.get_command_for_repository(args)
         json_str = self.run_command_simple(command_line)
         json_array = json.loads(json_str)
         assoc = self.array_to_dict(json_array, "name")
