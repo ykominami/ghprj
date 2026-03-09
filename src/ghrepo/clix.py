@@ -18,7 +18,9 @@ class Clix:
         p_list = subparsers.add_parser("list", help="list all repositorie)s")
         p_list.set_defaults(func=command_dict["list"])
 
-        p_list.add_argument("-f", action="store_true", help="force download")
+        p_list.add_argument(
+            "-f", "--force", action="store_true", help="force download"
+        )
         p_list.add_argument("-v", "--verbose", action="store_true", help="verbose")
         p_list.add_argument("--user", help="GitHub user name")
         p_list.add_argument("--limit", type=int, help="limit the number of repos")

@@ -91,4 +91,3 @@ def get_user() -> None:
     user = command.run()
     normalized_user = Util.normalize_string(user)
     print(normalized_user)
-
