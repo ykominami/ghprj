@@ -1,16 +1,16 @@
 # from ghrepo.command import Command
 from yklibpy.command.command import Command
-from yklibpy.db.appstore import AppStore
 from yklibpy.command.command_gh_user import CommandGhUser
 from yklibpy.common.util import Util
-from ghrepo.appconfigx import AppConfigx
+from yklibpy.db.appstore import AppStore
+
 
 class CommandSetup(Command):
-  def __init__(self, appstore: AppStore):
-    self.appstore = appstore
+  def __init__(self, appstore: AppStore) -> None:
+    self.appstore: AppStore = appstore
 
   def run(self, key: str, default_json_fields: list[str]) -> None:
-    user = CommandGhUser().run()
+    user: str | None = CommandGhUser().run()
     if Util.is_empty(user):
       user = CommandGhUser.DEFAULT_VALUE_USER
 

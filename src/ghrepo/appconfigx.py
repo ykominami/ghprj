@@ -2,7 +2,7 @@ from yklibpy.config.appconfig import AppConfig
 
 
 class AppConfigx(AppConfig):
-    default_json_fields_in_db = [
+    default_json_fields_in_db: list[str] = [
         "name",
         "count",
         "valid",
@@ -20,7 +20,7 @@ class AppConfigx(AppConfig):
         "hasProjectsEnabled",
         "homepageUrl",
     ]
-    default_json_fields = [
+    default_json_fields: list[str] = [
         "name",
         "url",
         "owner",
@@ -33,4 +33,4 @@ class AppConfigx(AppConfig):
         "hasProjectsEnabled",
         "homepageUrl",
     ]
-    key = "JSON_FIELDS"
+    key: str = "JSON_FIELDS"
