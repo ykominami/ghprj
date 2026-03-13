@@ -2,17 +2,22 @@
 
 import argparse
 import json
+from collections.abc import Callable
 from datetime import datetime
+from typing import cast
 
 from yklibpy.command.command_gh_user import CommandGhUser
 from yklibpy.common.util import Util
 from yklibpy.db.appstore import AppStore
 from yklibpy.db.storex import Storex
+from yklibpy.common.loggerx import Loggerx
 
 from ghrepo.appconfigx import AppConfigx
 from ghrepo.clix import Clix
 from ghrepo.command_list import CommandList
 from ghrepo.command_setup import CommandSetup
+
+type CommandHandler = Callable[[argparse.Namespace], None]
 
 
 class Ghrepo:
@@ -24,12 +29,11 @@ class Ghrepo:
     def init_appstore(cls, normalized_user: str | None) -> AppStore:
         Storex.set_file_type_dict(AppConfigx.file_type_dict)
 
-        # print(f'A Ghrepo init_appstore normalized_user={normalized_user}')
         if normalized_user is None:
-            user = CommandGhUser().run()
+            user: str | None = CommandGhUser().run()
             if Util.is_empty(user):
                 user = CommandGhUser.DEFAULT_VALUE_USER
-                print(f"user={user}")
+                Loggerx.debug(f"user={user}", __name__)
 
             normalized_user = Util.normalize_string(user)
 
@@ -45,10 +49,15 @@ class Ghrepo:
 
     @classmethod
     def list_repos(cls, args: argparse.Namespace) -> None:
+        if args.verbose:
+            Loggerx._set_log_level(logging.DEBUG)
+        else:
+            Loggerx._set_log_level(logging.INFO)
+
         normalized_user = Util.normalize_string(args.user)
         appsstore = cls.init_appstore(normalized_user)
         appsstore.load_file_all()
-        json_fields = appsstore.get_from_config("config", AppConfigx.key)
+        json_fields = cast(list[str], appsstore.get_from_config("config", AppConfigx.key))
         command = CommandList(appsstore, json_fields, args.user)
 
         count = command.get_next_snapshot_count()
@@ -59,22 +68,27 @@ class Ghrepo:
         # 既存の最新DBも更新しておく。
         appsstore.output_db("db", new_assoc)
         if args.verbose:
-            print(json.dumps(new_assoc, ensure_ascii=False, indent=2))
+            Loggerx.debug(json.dumps(new_assoc, ensure_ascii=False, indent=2), __name__)
 
     @classmethod
     def fix_repos(cls, args: argparse.Namespace) -> None:
+        if args.verbose:
+            Loggerx._set_log_level(logging.DEBUG)
+        else:
+            Loggerx._set_log_level(logging.INFO)
+
         normalized_user = Util.normalize_string(args.user)
         appsstore = cls.init_appstore(normalized_user)
         appsstore.load_file_all()
-        json_fields = appsstore.get_from_config("config", AppConfigx.key)
+        json_fields = cast(list[str], appsstore.get_from_config("config", AppConfigx.key))
         command = CommandList(appsstore, json_fields, args.user)
         result = command.fix_storage(args.verbose)
         if args.verbose:
-            print(json.dumps(result, ensure_ascii=False, indent=2))
+            Loggerx.debug(json.dumps(result, ensure_ascii=False, indent=2), __name__)
 
 
 def main() -> None:
-    command_dict = {
+    command_dict: dict[str, CommandHandler] = {
         "setup": Ghrepo.setup,
         "list": Ghrepo.list_repos,
         "fix": Ghrepo.fix_repos,
@@ -83,11 +97,11 @@ def main() -> None:
     clix = Clix("GitHub Repository list", command_dict)
 
     args = clix.parse_args()
-    args.func(args)
+    cast(CommandHandler, args.func)(args)
 
 
 def get_user() -> None:
     command = CommandGhUser()
     user = command.run()
     normalized_user = Util.normalize_string(user)
-    print(normalized_user)
+    Loggerx.debug(normalized_user, __name__)
