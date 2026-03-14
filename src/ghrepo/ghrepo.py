@@ -22,12 +22,20 @@ type CommandHandler = Callable[[argparse.Namespace], None]
 
 
 class Ghrepo:
-    """GitHub リポジトリメタデータ抽出・変換ユーティリティクラス"""
+    """`ghrepo` の主要 CLI 処理を束ねる統括クラス。"""
 
     # s = "hello\nworld\r\nfoo\n"
 
     @classmethod
     def init_appstore(cls, normalized_user: str | None) -> AppStore:
+        """対象ユーザーに対応する `AppStore` を準備して返す。
+
+        Args:
+            normalized_user: 正規化済み GitHub ユーザー名。`None` の場合は実行環境から補完する。
+
+        Returns:
+            設定ファイルと DB ファイルの準備が済んだ `AppStore`。
+        """
         Storex.set_file_type_dict(AppConfigx.file_type_dict)
 
         if normalized_user is None:
@@ -44,21 +52,25 @@ class Ghrepo:
 
     @classmethod
     def setup(cls, args: argparse.Namespace) -> None:
+        """設定ファイルと保存先 DB の初期化を実行する。"""
         appsstore = cls.init_appstore(args.user)
         command = CommandSetup(appsstore)
         command.run(AppConfigx.key, AppConfigx.default_json_fields)
 
     @classmethod
     def _set_log_level_by_verbose(cls, verbose: bool) -> None:
+        """`verbose` の値に応じてログレベルを切り替える。"""
         Loggerx._set_log_level(logging.DEBUG if verbose else logging.INFO)
 
     @classmethod
     def _debug_if_verbose(cls, verbose: bool, data: object) -> None:
+        """`verbose` が有効なときだけ整形済み JSON をデバッグ出力する。"""
         if verbose:
             Loggerx.debug(json.dumps(data, ensure_ascii=False, indent=2), __name__)
 
     @classmethod
     def list_repos(cls, args: argparse.Namespace) -> None:
+        """GitHub リポジトリ一覧を取得し、最新 DB とスナップショットを更新する。"""
         cls._set_log_level_by_verbose(args.verbose)
 
         normalized_user = Util.normalize_string(args.user)
@@ -78,6 +90,7 @@ class Ghrepo:
 
     @classmethod
     def fix_repos(cls, args: argparse.Namespace) -> None:
+        """保存済みスナップショットと `fetch` 情報の整合性を補正する。"""
         cls._set_log_level_by_verbose(args.verbose)
 
         normalized_user = Util.normalize_string(args.user)
@@ -90,12 +103,12 @@ class Ghrepo:
 
 
 def main() -> None:
+    """CLI 引数を解析し、選択されたサブコマンドを実行する。"""
     command_dict: dict[str, CommandHandler] = {
         "setup": Ghrepo.setup,
         "list": Ghrepo.list_repos,
         "fix": Ghrepo.fix_repos,
     }
-    """CLIエントリポイント"""
     clix = Clix("GitHub Repository list", command_dict)
 
     args = clix.parse_args()
@@ -103,6 +116,7 @@ def main() -> None:
 
 
 def get_user() -> None:
+    """現在の GitHub ユーザー名を正規化してログ出力する。"""
     command = CommandGhUser()
     user = command.run()
     normalized_user = Util.normalize_string(user)
