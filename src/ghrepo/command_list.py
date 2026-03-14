@@ -224,10 +224,12 @@ class CommandList(Command):
             json_value = args.json
         options.append(f"--json {json_value}")
 
-        if target_user != "" and target_user != self.config_user:
-            options.append(f"--user {target_user}")
+        command_parts = ["gh repo list"]
+        if target_user != "":
+            command_parts.append(target_user)
+        command_parts.append(" ".join(options))
 
-        return f"gh repo list {' '.join(options)}"
+        return " ".join(command_parts)
 
     @staticmethod
     def array_to_dict(array: list[RepoItem], key: str) -> RepoAssoc:
@@ -251,7 +253,16 @@ class CommandList(Command):
 
         command_line = self.get_command_for_repository(args)
         json_str = self.run_command_simple(command_line)
-        json_array = json.loads(json_str)
+        try:
+            json_array = json.loads(json_str)
+        except json.JSONDecodeError as exc:
+            raise ValueError("gh repo list returned invalid JSON output") from exc
+
+        if not isinstance(json_array, list):
+            raise ValueError("gh repo list must return a JSON array")
+        if any(not isinstance(item, dict) or "name" not in item for item in json_array):
+            raise ValueError("gh repo list output must include repository names")
+
         assoc = self.array_to_dict(json_array, "name")
         for name, item in list(assoc.items()):
             item["count"] = count
