@@ -60,7 +60,7 @@ class Ghrepo:
     @classmethod
     def _set_log_level_by_verbose(cls, verbose: bool) -> None:
         """`verbose` の値に応じてログレベルを切り替える。"""
-        Loggerx._set_log_level(logging.DEBUG if verbose else logging.INFO)
+        Loggerx.set_log_level(logging.DEBUG if verbose else logging.INFO)
 
     @classmethod
     def _debug_if_verbose(cls, verbose: bool, data: object) -> None:
@@ -78,15 +78,25 @@ class Ghrepo:
         appsstore.load_file_all()
         json_fields = cast(list[str], appsstore.get_from_config("config", AppConfigx.key))
         command = CommandList(appsstore, json_fields, args.user)
+        should_fetch = args.force or not command.get_fetch_path().exists()
 
-        count = command.get_next_snapshot_count()
-        new_assoc = command.get_all_repos(args, appsstore, count)
-        timestamp = datetime.now().astimezone().isoformat(timespec="seconds")
-        command.save_snapshot(count, timestamp, new_assoc)
+        if should_fetch:
+            count = command.get_next_snapshot_count()
+            new_assoc = command.get_all_repos(args, appsstore, count)
+            timestamp = datetime.now().astimezone().isoformat(timespec="seconds")
+            command.save_snapshot(count, timestamp, new_assoc)
 
-        # 既存の最新DBも更新しておく。
-        appsstore.output_db("db", new_assoc)
-        cls._debug_if_verbose(args.verbose, new_assoc)
+            # 既存の最新DBも更新しておく。
+            appsstore.output_db("db", new_assoc)
+            cls._debug_if_verbose(args.verbose, new_assoc)
+            return
+
+        latest_db_path = command.get_db_store().get_path()
+        if not latest_db_path.exists():
+            raise FileNotFoundError(f"latest repository db does not exist: {latest_db_path}")
+
+        latest_assoc = command.load_latest_assoc()
+        cls._debug_if_verbose(args.verbose, latest_assoc)
 
     @classmethod
     def fix_repos(cls, args: argparse.Namespace) -> None:
