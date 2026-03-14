@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import logging
 from collections.abc import Callable
 from datetime import datetime
 from typing import cast
@@ -48,11 +49,17 @@ class Ghrepo:
         command.run(AppConfigx.key, AppConfigx.default_json_fields)
 
     @classmethod
+    def _set_log_level_by_verbose(cls, verbose: bool) -> None:
+        Loggerx._set_log_level(logging.DEBUG if verbose else logging.INFO)
+
+    @classmethod
+    def _debug_if_verbose(cls, verbose: bool, data: object) -> None:
+        if verbose:
+            Loggerx.debug(json.dumps(data, ensure_ascii=False, indent=2), __name__)
+
+    @classmethod
     def list_repos(cls, args: argparse.Namespace) -> None:
-        if args.verbose:
-            Loggerx._set_log_level(logging.DEBUG)
-        else:
-            Loggerx._set_log_level(logging.INFO)
+        cls._set_log_level_by_verbose(args.verbose)
 
         normalized_user = Util.normalize_string(args.user)
         appsstore = cls.init_appstore(normalized_user)
@@ -67,15 +74,11 @@ class Ghrepo:
 
         # 既存の最新DBも更新しておく。
         appsstore.output_db("db", new_assoc)
-        if args.verbose:
-            Loggerx.debug(json.dumps(new_assoc, ensure_ascii=False, indent=2), __name__)
+        cls._debug_if_verbose(args.verbose, new_assoc)
 
     @classmethod
     def fix_repos(cls, args: argparse.Namespace) -> None:
-        if args.verbose:
-            Loggerx._set_log_level(logging.DEBUG)
-        else:
-            Loggerx._set_log_level(logging.INFO)
+        cls._set_log_level_by_verbose(args.verbose)
 
         normalized_user = Util.normalize_string(args.user)
         appsstore = cls.init_appstore(normalized_user)
@@ -83,8 +86,7 @@ class Ghrepo:
         json_fields = cast(list[str], appsstore.get_from_config("config", AppConfigx.key))
         command = CommandList(appsstore, json_fields, args.user)
         result = command.fix_storage(args.verbose)
-        if args.verbose:
-            Loggerx.debug(json.dumps(result, ensure_ascii=False, indent=2), __name__)
+        cls._debug_if_verbose(args.verbose, result)
 
 
 def main() -> None:
