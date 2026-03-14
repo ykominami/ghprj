@@ -7,9 +7,12 @@ type CommandHandler = Callable[[argparse.Namespace], None]
 
 
 class Clix:
+    """`ghrepo` のサブコマンド定義を組み立てる CLI ラッパー。"""
+
     def __init__(
         self, description: str, command_dict: dict[str, CommandHandler]
     ) -> None:
+        """主要サブコマンドを登録した `Cli` インスタンスを構築する。"""
         self.cli = Cli(description)
 
         subparsers: argparse._SubParsersAction[argparse.ArgumentParser] = (
@@ -51,8 +54,10 @@ class Clix:
     def get_subparsers(
         self, name: str
     ) -> argparse._SubParsersAction[argparse.ArgumentParser]:
+        """内部の `Cli` が保持する subparsers を返す。"""
         return self.cli.get_subparsers(name)
 
     def parse_args(self) -> argparse.Namespace:
+        """登録済み定義に従って CLI 引数を解析する。"""
         return self.cli.parse_args()
 

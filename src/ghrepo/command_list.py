@@ -16,6 +16,7 @@ type RepoAssoc = dict[str, RepoItem]
 
 
 def remove_empty_directories(root_dir: str | Path) -> int:
+    """指定ディレクトリ配下の空ディレクトリを末端から削除する。"""
     root_path = Path(root_dir)
     if not root_path.exists():
         return 0
@@ -38,6 +39,7 @@ def remove_empty_directories(root_dir: str | Path) -> int:
 
 
 def collect_repolist_counts(repolist_dir: str | Path) -> list[int]:
+    """`repolist` 配下の数値ディレクトリ名を昇順で収集する。"""
     repolist_path = Path(repolist_dir)
     if not repolist_path.exists() or not repolist_path.is_dir():
         return []
@@ -62,6 +64,16 @@ def normalize_fetch_assoc(
     repolist_counts: list[int],
     fallback_timestamp: str,
 ) -> tuple[dict[int, str], bool]:
+    """`fetch` 情報を数値キー辞書へ正規化し、最新件数に合わせて補正する。
+
+    Args:
+        fetch_assoc: 永続化済みの取得回数と日時の対応。
+        repolist_counts: `repolist` ディレクトリから得た有効な件数一覧。
+        fallback_timestamp: 最新件数の補完に使う既定日時。
+
+    Returns:
+        正規化後の `fetch` 辞書と、入力から内容を変更したかどうか。
+    """
     normalized_fetch: dict[int, str] = {}
     changed = False
 
@@ -107,19 +119,24 @@ def normalize_fetch_assoc(
 
 
 class CommandList(Command):
+    """リポジトリ一覧の取得、保存、補正を担当するコマンド群。"""
+
     def __init__(self, appstore: AppStore, json_fields: list[str], user: str | None) -> None:
+        """保存先と取得対象ユーザーに関する実行文脈を保持する。"""
         self.appstore: AppStore = appstore
         self.json_fields: list[str] = json_fields
         self.user: str | None = user
         self.config_user: str = cast(str, self.appstore.get_from_config("config", "USER"))
 
     def _get_store(self, base_name: str) -> Storex:
+        """ユーザー別設定を考慮して対象 `Storex` を返す。"""
         path_assoc = self.appstore.file_assoc[AppConfig.KIND_DB][base_name][AppConfig.PATH]
         if self.appstore.user is None:
             return cast(Storex, path_assoc)
         return cast(Storex, path_assoc[self.appstore.user])
 
     def _set_db_value(self, base_name: str, data: dict[Any, Any]) -> None:
+        """`AppStore` 内のキャッシュ済み DB 値を更新する。"""
         if self.appstore.user is None:
             self.appstore.file_assoc[AppConfig.KIND_DB][base_name][AppConfig.VALUE] = data
             return
@@ -129,22 +146,28 @@ class CommandList(Command):
         ] = data
 
     def get_fetch_store(self) -> Storex:
+        """`fetch` DB に対応する `Storex` を返す。"""
         return self._get_store(AppConfig.BASE_NAME_FETCH)
 
     def get_db_store(self) -> Storex:
+        """最新リポジトリ DB に対応する `Storex` を返す。"""
         return self._get_store("db")
 
     def get_fetch_path(self) -> Path:
+        """`fetch` DB の実ファイルパスを返す。"""
         return self.get_fetch_store().get_path()
 
     def get_user_dir(self) -> Path:
+        """対象ユーザーの保存ルートディレクトリを返す。"""
         return self.get_fetch_path().parent
 
     def get_repolist_dir(self) -> Path:
+        """スナップショット保存先の `repolist` ディレクトリを返す。"""
         return self.get_user_dir() / "repolist"
 
     @staticmethod
     def coerce_fetch_assoc(fetch_assoc: dict[Any, Any]) -> dict[int, str]:
+        """`fetch` 辞書のキーと値を保存用の型へそろえる。"""
         normalized_fetch: dict[int, str] = {}
         for key, value in fetch_assoc.items():
             try:
@@ -158,24 +181,28 @@ class CommandList(Command):
         return dict(sorted(normalized_fetch.items()))
 
     def load_fetch_assoc(self) -> dict[int, str]:
+        """保存済み `fetch` 情報を読み込み、正規化して返す。"""
         loaded_value = self.get_fetch_store().load()
         if not isinstance(loaded_value, dict):
             return {}
         return self.coerce_fetch_assoc(loaded_value)
 
     def load_latest_assoc(self) -> RepoAssoc:
+        """最新リポジトリ DB を読み込み、辞書として返す。"""
         loaded_value = self.get_db_store().load()
         if not isinstance(loaded_value, dict):
             return {}
         return cast(RepoAssoc, loaded_value)
 
     def output_fetch_assoc(self, fetch_assoc: dict[int, str]) -> None:
+        """`fetch` 辞書を永続化し、`AppStore` 内の値も同期する。"""
         self.appstore.output_db(
             AppConfig.BASE_NAME_FETCH, cast(dict[str, Any], fetch_assoc)
         )
         self._set_db_value(AppConfig.BASE_NAME_FETCH, fetch_assoc)
 
     def get_next_snapshot_count(self) -> int:
+        """既存保存件数を参照して次回スナップショット番号を返す。"""
         fetch_assoc = self.load_fetch_assoc()
         repolist_counts = collect_repolist_counts(self.get_repolist_dir())
         max_fetch_count = max(fetch_assoc.keys(), default=0)
@@ -183,6 +210,7 @@ class CommandList(Command):
         return max(max_fetch_count, max_repolist_count) + 1
 
     def get_command_for_repository(self, args: argparse.Namespace) -> str:
+        """CLI 引数と設定値から `gh repo list` コマンド文字列を組み立てる。"""
         target_user = self.config_user
         if args.user is not None and args.user != "":
             target_user = args.user
@@ -203,11 +231,22 @@ class CommandList(Command):
 
     @staticmethod
     def array_to_dict(array: list[RepoItem], key: str) -> RepoAssoc:
+        """リポジトリ配列を指定キー基準の連想配列へ変換する。"""
         return {cast(str, item[key]): item for item in array}
 
     def get_all_repos(
         self, args: argparse.Namespace, appstore: AppStore, count: int
     ) -> RepoAssoc:
+        """GitHub CLI で取得した一覧に管理用フィールドを付与して返す。
+
+        Args:
+            args: `list` サブコマンドの引数。
+            appstore: 互換性維持のため受け取る未使用引数。
+            count: 今回付与する取得回数。
+
+        Returns:
+            リポジトリ名をキーとする取得結果。
+        """
         del appstore
 
         command_line = self.get_command_for_repository(args)
@@ -227,6 +266,7 @@ class CommandList(Command):
     def save_snapshot(
         self, count: int, timestamp: str, assoc: RepoAssoc
     ) -> None:
+        """取得結果を件数別スナップショットとして保存し、`fetch` も更新する。"""
         snapshot_dir = self.get_repolist_dir() / str(count)
         snapshot_path = snapshot_dir / "db.yaml"
         snapshot_dir.mkdir(parents=True, exist_ok=True)
@@ -238,6 +278,11 @@ class CommandList(Command):
         self.output_fetch_assoc(dict(sorted(fetch_assoc.items())))
 
     def fix_storage(self, verbose: bool = False) -> dict[str, Any]:
+        """保存済みスナップショット構成を点検し、必要な補正結果を返す。
+
+        Returns:
+            削除件数、最新件数、`fetch` 更新有無、警告一覧を含む結果辞書。
+        """
         warnings: list[str] = []
         user_dir = self.get_user_dir()
         repolist_dir = self.get_repolist_dir()

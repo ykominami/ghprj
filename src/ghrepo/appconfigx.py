@@ -2,6 +2,8 @@ from yklibpy.config.appconfig import AppConfig
 
 
 class AppConfigx(AppConfig):
+    """`ghrepo` 用の既定設定値と取得フィールドをまとめる。"""
+
     default_json_fields_in_db: list[str] = [
         "name",
         "count",
