@@ -8,10 +8,10 @@ from datetime import datetime
 from typing import cast
 
 from yklibpy.command.command_gh_user import CommandGhUser
+from yklibpy.common.loggerx import Loggerx
 from yklibpy.common.util import Util
 from yklibpy.db.appstore import AppStore
 from yklibpy.db.storex import Storex
-from yklibpy.common.loggerx import Loggerx
 
 from ghrepo.appconfigx import AppConfigx
 from ghrepo.clix import Clix
@@ -86,9 +86,25 @@ class Ghrepo:
             timestamp = datetime.now().astimezone().isoformat(timespec="seconds")
             command.save_snapshot(count, timestamp, new_assoc)
 
-            # 既存の最新DBも更新しておく。
-            appsstore.output_db("db", new_assoc)
-            cls._debug_if_verbose(args.verbose, new_assoc)
+            # 最新DBはレコード単位で差分反映する（countのみ差分は更新しない）。
+            latest_db_path = command.get_db_store().get_path()
+            if not latest_db_path.exists():
+                merged_assoc = new_assoc
+            else:
+                latest_assoc, loaded_ok = command.load_latest_assoc_with_status()
+                if not loaded_ok:
+                    Loggerx.warning(
+                        "latest repository db is invalid; fallback to snapshot output",
+                        __name__,
+                    )
+                    merged_assoc = new_assoc
+                else:
+                    merged_assoc = command.merge_latest_assoc_by_record(
+                        latest_assoc, new_assoc
+                    )
+
+            appsstore.output_db("db", merged_assoc)
+            cls._debug_if_verbose(args.verbose, merged_assoc)
             return
 
         latest_db_path = command.get_db_store().get_path()

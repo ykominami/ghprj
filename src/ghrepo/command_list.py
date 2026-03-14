@@ -6,10 +6,10 @@ from typing import Any, cast
 
 import yaml
 from yklibpy.command import Command
+from yklibpy.common.loggerx import Loggerx
 from yklibpy.config.appconfig import AppConfig
 from yklibpy.db.appstore import AppStore
 from yklibpy.db.storex import Storex
-from yklibpy.common.loggerx import Loggerx
 
 type RepoItem = dict[str, Any]
 type RepoAssoc = dict[str, RepoItem]
@@ -189,10 +189,51 @@ class CommandList(Command):
 
     def load_latest_assoc(self) -> RepoAssoc:
         """最新リポジトリ DB を読み込み、辞書として返す。"""
+        latest_assoc, _ = self.load_latest_assoc_with_status()
+        return latest_assoc
+
+    def load_latest_assoc_with_status(self) -> tuple[RepoAssoc, bool]:
+        """最新リポジトリ DB を読み込み、形式妥当性とともに返す。"""
         loaded_value = self.get_db_store().load()
         if not isinstance(loaded_value, dict):
-            return {}
-        return cast(RepoAssoc, loaded_value)
+            return {}, False
+        return cast(RepoAssoc, loaded_value), True
+
+    @staticmethod
+    def _exclude_count_field(repo_item: RepoItem) -> RepoItem:
+        """比較時に `count` を除外した辞書を返す。"""
+        return {key: value for key, value in repo_item.items() if key != "count"}
+
+    @classmethod
+    def has_diff_excluding_count(
+        cls, latest_item: RepoItem, snapshot_item: RepoItem
+    ) -> bool:
+        """`count` を除外した比較で差分有無を判定する。"""
+        latest_without_count = cls._exclude_count_field(latest_item)
+        snapshot_without_count = cls._exclude_count_field(snapshot_item)
+        return latest_without_count != snapshot_without_count
+
+    @classmethod
+    def merge_latest_assoc_by_record(
+        cls, latest_assoc: RepoAssoc, snapshot_assoc: RepoAssoc
+    ) -> RepoAssoc:
+        """レコード単位で差分を反映した最新 DB 内容を構築する。
+
+        Rules:
+            - 既存キー: `count` 以外に差分があるときのみ更新
+            - 新規キー: 追加
+            - 欠落キー: 削除しない
+        """
+        merged_assoc: RepoAssoc = dict(latest_assoc)
+        for repo_name, snapshot_item in snapshot_assoc.items():
+            latest_item = latest_assoc.get(repo_name)
+            if latest_item is None:
+                merged_assoc[repo_name] = snapshot_item
+                continue
+            if cls.has_diff_excluding_count(latest_item, snapshot_item):
+                merged_assoc[repo_name] = snapshot_item
+
+        return dict(sorted(merged_assoc.items()))
 
     def output_fetch_assoc(self, fetch_assoc: dict[int, str]) -> None:
         """`fetch` 辞書を永続化し、`AppStore` 内の値も同期する。"""
