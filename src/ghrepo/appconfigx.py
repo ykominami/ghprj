@@ -11,6 +11,7 @@ class AppConfigx(AppConfig):
         "field_1",
         "field_2",
         "field_3",
+        "visibility",
         "url",
         "owner",
         "nameWithOwner",
@@ -24,6 +25,7 @@ class AppConfigx(AppConfig):
     ]
     default_json_fields: list[str] = [
         "name",
+        "visibility",
         "url",
         "owner",
         "nameWithOwner",

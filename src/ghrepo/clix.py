@@ -51,6 +51,20 @@ class Clix:
         p_fix.add_argument("--user", help="GitHub user name")
         p_fix.add_argument("--verbose", action="store_true", help="verbose")
 
+        # サブコマンド "search"
+        p_search: argparse.ArgumentParser = subparsers.add_parser(
+            "search", help="search repositories from latest snapshot"
+        )
+        p_search.set_defaults(func=command_dict["search"])
+        p_search.add_argument(
+            "search_name",
+            choices=["public", "private", "internal", "latest10"],
+            help="search kind",
+        )
+        p_search.add_argument("--name", help="substring pattern for repository name")
+        p_search.add_argument("--user", help="GitHub user name")
+        p_search.add_argument("--verbose", action="store_true", help="verbose")
+
     def get_subparsers(
         self, name: str
     ) -> argparse._SubParsersAction[argparse.ArgumentParser]:

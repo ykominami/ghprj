@@ -16,6 +16,7 @@ from yklibpy.common.loggerx import Loggerx
 from ghrepo.appconfigx import AppConfigx
 from ghrepo.clix import Clix
 from ghrepo.command_list import CommandList
+from ghrepo.command_search import CommandSearch
 from ghrepo.command_setup import CommandSetup
 
 type CommandHandler = Callable[[argparse.Namespace], None]
@@ -111,6 +112,18 @@ class Ghrepo:
         result = command.fix_storage(args.verbose)
         cls._debug_if_verbose(args.verbose, result)
 
+    @classmethod
+    def search_repos(cls, args: argparse.Namespace) -> None:
+        """保存済みスナップショットから条件一致するリポジトリを検索する。"""
+        cls._set_log_level_by_verbose(args.verbose)
+
+        normalized_user = Util.normalize_string(args.user)
+        appsstore = cls.init_appstore(normalized_user)
+        appsstore.load_file_all()
+        command = CommandSearch(appsstore, args.user)
+        result = command.search_repos(args.search_name, args.name)
+        print(json.dumps(result, ensure_ascii=True))
+
 
 def main() -> None:
     """CLI 引数を解析し、選択されたサブコマンドを実行する。"""
@@ -118,6 +131,7 @@ def main() -> None:
         "setup": Ghrepo.setup,
         "list": Ghrepo.list_repos,
         "fix": Ghrepo.fix_repos,
+        "search": Ghrepo.search_repos,
     }
     clix = Clix("GitHub Repository list", command_dict)
 
@@ -130,4 +144,6 @@ def get_user() -> None:
     command = CommandGhUser()
     user = command.run()
     normalized_user = Util.normalize_string(user)
-    Loggerx.debug(normalized_user, __name__)
+    if Util.is_empty(normalized_user):
+        normalized_user = CommandGhUser.DEFAULT_VALUE_USER
+    Loggerx.debug(cast(str, normalized_user), __name__)
