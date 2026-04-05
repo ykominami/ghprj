@@ -1,0 +1,65 @@
+# 環境変数ファイル
+.env
+.env.*
+
+# 認証情報
+credentials.json
+secrets.json
+auth.json
+
+# 秘密鍵
+*.key
+*.pem
+id_rsa
+id_rsa.pub
+*.p12
+*.pfx
+
+# ビルド成果物
+dist/
+build/
+out/
+
+# Python
+*.pyc
+*.pyo
+__pycache__/
+*.egg-info/
+
+# Java / Kotlin
+*.class
+target/
+*.jar
+*.war
+
+# OS生成ファイル
+.DS_Store
+Thumbs.db
+Desktop.ini
+# 依存関係
+node_modules/
+vendor/
+
+# ログファイル
+*.log
+logs/
+
+# 設定ファイル
+config.json
+
+# private
+/_private/
+
+# データベースファイル
+*.db
+*.sqlite
+*.sqlite3
+
+# データファイル（.csv, .parquetはデフォルトでインデックスから除外）
+data/
+datasets/
+
+# プロジェクト固有のキャッシュディレクトリ（.cache/はデフォルトで除外）
+cache/
+tmp/
+temp/

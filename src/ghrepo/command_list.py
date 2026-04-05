@@ -219,9 +219,24 @@ class CommandList(Command):
         options = [f"--limit {limit_value}"]
 
         if args.json is None:
-            json_value = ",".join(self.json_fields)
+            json_fields = list(self.json_fields)
         else:
-            json_value = args.json
+            # `gh` CLI の `--json` はカンマ区切りのフィールド列を想定する。
+            # ユーザ指定が `visibility` を含まない場合でも、必ず `visibility` を追加する。
+            json_fields = [field.strip() for field in args.json.split(",") if field.strip()]
+
+        # `visibility` の強制追加（重複は順序維持で除去）
+        if "visibility" not in json_fields:
+            json_fields.append("visibility")
+        seen_fields: set[str] = set()
+        normalized_fields: list[str] = []
+        for field in json_fields:
+            if field in seen_fields:
+                continue
+            seen_fields.add(field)
+            normalized_fields.append(field)
+
+        json_value = ",".join(normalized_fields)
         options.append(f"--json {json_value}")
 
         command_parts = ["gh repo list"]
@@ -260,8 +275,30 @@ class CommandList(Command):
 
         if not isinstance(json_array, list):
             raise ValueError("gh repo list must return a JSON array")
-        if any(not isinstance(item, dict) or "name" not in item for item in json_array):
-            raise ValueError("gh repo list output must include repository names")
+        if any(
+            not isinstance(item, dict) or "name" not in item or "visibility" not in item
+            for item in json_array
+        ):
+            raise ValueError(
+                "gh repo list output must include repository names and visibility"
+            )
+
+        allowed_visibility = {"public", "internal", "private"}
+        for item in json_array:
+            visibility_value = item["visibility"]
+            if not isinstance(visibility_value, str):
+                raise ValueError(
+                    "gh repo list output has invalid visibility value: "
+                    f"{visibility_value!r}"
+                )
+            normalized = visibility_value.lower()
+            if normalized not in allowed_visibility:
+                raise ValueError(
+                    "gh repo list output has invalid visibility value: "
+                    f"{visibility_value!r}"
+                )
+            # `gh` は PUBLIC 等の大文字で返すことがある。保存は public/internal/private に統一する。
+            item["visibility"] = normalized
 
         assoc = self.array_to_dict(json_array, "name")
         for name, item in list(assoc.items()):
