@@ -5,6 +5,7 @@ import json
 import logging
 from collections.abc import Callable
 from datetime import datetime
+from pathlib import Path
 from typing import cast
 
 from yklibpy.command.command_gh_user import CommandGhUser
@@ -77,23 +78,31 @@ class Ghrepo:
         appstore.load_file_all()
         json_fields = cast(list[str], appstore.get_from_config("config", AppConfigx.key))
         command = CommandList(appstore, json_fields, args.user)
-        should_fetch = args.force or not command.get_snapshots_record_path().exists()
+        should_fetch = args.force or not command.get_snapshots_path().exists()
 
         if should_fetch:
-            snapshot_id = command.get_next_snapshot_id()
-            new_assoc = command.get_all_repos(args, snapshot_id)
+            snapshot_id = command.get_next_snapshot_count()
+            new_assoc = command.get_all_repos(args, appstore, snapshot_id)
             timestamp = datetime.now().astimezone().isoformat(timespec="seconds")
             command.save_snapshot(snapshot_id, timestamp, new_assoc)
 
             cls._debug_if_verbose(args.verbose, new_assoc)
+            Path(args.output).write_text(
+                json.dumps(new_assoc, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
             return
 
         repos_file_path = command.get_repos_store().get_path()
         if not repos_file_path.exists():
             raise FileNotFoundError(f"リポジトリ一覧ファイルが存在しません: {repos_file_path}")
 
-        latest_assoc = command.load_repos_assoc()
+        latest_assoc = command.load_latest_assoc()
         cls._debug_if_verbose(args.verbose, latest_assoc)
+        Path(args.output).write_text(
+            json.dumps(latest_assoc, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
 
     @classmethod
     def fix_repos(cls, args: argparse.Namespace) -> None:
@@ -117,9 +126,12 @@ class Ghrepo:
         appstore = cls.init_appstore(normalized_user)
         appstore.load_file_all()
         command = CommandSearch(appstore, args.user)
-        _result = command.search_repos(args.search_name, args.name)
-        _names = [item["name"] for item in _result]
-        print(json.dumps(_names, ensure_ascii=True))
+        _result = command.search_repos(args.search_name, args.name, args.user)
+        if args.all:
+            print(json.dumps(_result, ensure_ascii=False))
+        else:
+            _names = [item["name"] for item in _result]
+            print(json.dumps(_names, ensure_ascii=True))
 
 
 def main() -> None:

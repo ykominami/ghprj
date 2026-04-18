@@ -80,8 +80,8 @@ GitHub リポジトリ一覧を取得し、最新 DB とスナップショット
 
 #### 動作
 
-- `--force` フラグが立っている、または `snapshots.yaml` が存在しない場合に `gh repo list` を実行してスナップショットを保存する。
-- それ以外の場合は `gists.yaml` を読み込んで表示する。
+- `--force` フラグが立っている、または `snapshots.yaml` が存在しない場合に `gh repo list` を実行してスナップショットを保存し、`repos.yaml` 等を更新する。
+- それ以外の場合は既存の `repos.yaml` を読み込み、`--output` で指定したファイルへ JSON を書き出す。
 
 ---
 
@@ -92,7 +92,7 @@ GitHub リポジトリ一覧を取得し、最新 DB とスナップショット
 def fix_repos(cls, args: argparse.Namespace) -> None
 ```
 
-保存済みスナップショットと DB の整合性を補正する。  
+空ディレクトリの削除と `snapshots.yaml` の整合性補正を行う。`repos.yaml` は変更しない。  
 `fix` サブコマンドのエントリポイント。
 
 #### 引数
@@ -111,25 +111,30 @@ def fix_repos(cls, args: argparse.Namespace) -> None
 def search_repos(cls, args: argparse.Namespace) -> None
 ```
 
-保存済みスナップショットから条件一致するリポジトリを検索し、名前リストを JSON 形式で標準出力する。  
+保存済みスナップショットから、必須第 1 引数 `search_name` の値と、指定されたすべての検索条件オプション（`--name` / `--user`）に対応する条件を満たすリポジトリを検索し、結果を JSON 配列で標準出力する。  
 `search` サブコマンドのエントリポイント。
+
+引数の重複指定や優先度、オプションの順序に関する規則は `Clix` の「引数の解釈（共通）」および `search` サブコマンド定義に従う。
 
 #### 引数
 
 | 引数 | 属性 | 型 | 説明 |
 |---|---|---|---|
-| `args` | `.verbose` | `bool` | 詳細ログ出力フラグ |
-| `args` | `.user` | `str \| None` | 対象 GitHub ユーザー名 |
-| `args` | `.search_name` | `str` | 検索種別 |
-| `args` | `.name` | `str \| None` | 名前の部分文字列パターン |
+| `args` | `.verbose` | `bool` | 詳細な内容を出力する（デバッグ目的を想定） |
+| `args` | `.user` | `str \| None` | 検索条件としての GitHub ユーザー名（所有者が合致するリポジトリに限定。`search_name` が `latest10` のときは無視） |
+| `args` | `.search_name` | `str` | 検索種別（`public` / `private` / `both` / `internal` / `latest10`） |
+| `args` | `.name` | `str \| None` | リポジトリ名の部分文字列パターン（`latest10` のときは無視） |
+| `args` | `.all` | `bool` | `True` のときはリポジトリ情報の全項目を含む JSON 配列を標準出力する |
 
 #### 出力
 
-一致したリポジトリ名のリストを ASCII JSON 形式で標準出力する。
+- **既定（`.all` が偽）:** 条件に合致するすべてのリポジトリについて、**リポジトリ名のみ** を要素とする JSON 配列（ASCII）を標準出力する。
 
 ```json
 ["repo-a", "repo-b"]
 ```
+
+- **`.all` が真:** 条件に合致する各リポジトリについて、`CommandSearch.search_repos` が返す `RepoItem` と同様の全項目を含むオブジェクトの JSON 配列を標準出力する。
 
 ---
 
@@ -160,6 +165,6 @@ CLI エントリポイント。`Clix` で引数を解析し、選択されたサ
 def get_user() -> None
 ```
 
-現在の GitHub ユーザー名を正規化してデバッグログに出力する。
+正規化した GitHub ユーザー名を `Loggerx.debug` に出力する。標準出力には出さず、ログレベルが DEBUG のときのみ表示される。
 
 `pyproject.toml` のエントリポイント `get_user` に対応する。
