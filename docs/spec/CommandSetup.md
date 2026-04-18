@@ -3,7 +3,7 @@
 ## 概要
 
 設定ファイルと空の保存領域を初期化するコマンドクラス。  
-初回利用時に `config.yaml`・`gists.yaml`・`snapshots.yaml` を出力して利用可能な状態にする。
+初回利用時に `config.yaml`・`repos.yaml`・`snapshots.yaml` を出力して利用可能な状態にする。
 
 **モジュール:** `ghrepo.command_setup`  
 **基底クラス:** `yklibpy.command.command.Command`
@@ -52,7 +52,7 @@ def run(self, key: str, default_json_fields: list[str]) -> None
    USER: <appstore.user>
    ```
 
-4. `gists.yaml` を空辞書 `{}` で出力する。
+4. `repos.yaml` を空辞書 `{}` で出力する。
 5. `snapshots.yaml` を空辞書 `{}` で出力する。
 
 #### 戻り値

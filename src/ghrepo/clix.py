@@ -27,7 +27,7 @@ class Clix:
 
         # サブコマンド "list"
         p_list: argparse.ArgumentParser = subparsers.add_parser(
-            "list", help="list all repositorie)s"
+            "list", help="list all repositories"
         )
         p_list.set_defaults(func=command_dict["list"])
 
@@ -38,6 +38,12 @@ class Clix:
         p_list.add_argument("--user", help="GitHub user name")
         p_list.add_argument("--limit", type=int, help="limit the number of repos")
         p_list.add_argument("--json", type=str, help="json output")
+        p_list.add_argument(
+            "--output",
+            type=str,
+            default="repos.json",
+            help="output file name",
+        )
 
         # サブコマンド "fix"
         p_fix: argparse.ArgumentParser = subparsers.add_parser(
@@ -54,12 +60,17 @@ class Clix:
         p_search.set_defaults(func=command_dict["search"])
         p_search.add_argument(
             "search_name",
-            choices=["public", "private", "both","internal", "latest10"],
+            choices=["public", "private", "both", "internal", "latest10"],
             help="search kind",
         )
         p_search.add_argument("--name", help="substring pattern for repository name")
         p_search.add_argument("--user", help="GitHub user name")
         p_search.add_argument("--verbose", action="store_true", help="verbose")
+        p_search.add_argument(
+            "--all",
+            action="store_true",
+            help="include all repository fields in JSON output",
+        )
 
     def get_subparsers(
         self, name: str

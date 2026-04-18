@@ -1,6 +1,6 @@
 from datetime import datetime
 from pathlib import Path
-from typing import Any, ClassVar, cast
+from typing import Any, cast
 
 import yaml
 from yklibpy.command import Command
@@ -13,12 +13,11 @@ from ghrepo.appconfigx import AppConfigx
 type RepoItem = dict[str, Any]
 type RepoAssoc = dict[str, RepoItem]
 
+SEARCH_KINDS = {"public", "private", "both", "internal", "latest10"}
+
+
 class CommandSearch(Command):
     """保存済みスナップショットを検索するコマンド。"""
-
-    SEARCH_KINDS: ClassVar[frozenset[str]] = frozenset(
-        {"public", "private", "both", "internal", "latest10"}
-    )
 
     def __init__(self, appstore: AppStore, user: str | None) -> None:
         self.appstore: AppStore = appstore
@@ -32,22 +31,22 @@ class CommandSearch(Command):
             return cast(Storex, path_assoc)
         return cast(Storex, path_assoc[self.appstore.user])
 
-    def get_snapshots_record_path(self) -> Path:
+    def get_snapshots_path(self) -> Path:
         """スナップショット作成記録ファイル (`snapshots.yaml`) の実ファイルパスを返す。"""
         return self._get_store(AppConfigx.BASE_NAME_SNAPSHOTS).get_path()
 
     def get_user_dir(self) -> Path:
         """対象ユーザーの保存ルートディレクトリを返す。"""
-        return self.get_snapshots_record_path().parent
+        return self.get_snapshots_path().parent
 
-    def get_snapshot_top_dir(self) -> Path:
+    def get_snapshots_dir(self) -> Path:
         """スナップショットトップディレクトリ (`snapshots/`) のパスを返す。"""
         return self.get_user_dir() / AppConfigx.SNAPSHOT_TOP_DIR_NAME
 
     @staticmethod
-    def _collect_snapshot_ids(snapshot_top_dir: str | Path) -> list[int]:
+    def _collect_snapshot_ids(snapshots_dir: str | Path) -> list[int]:
         """スナップショットトップディレクトリ配下の数値ディレクトリ名を昇順で収集する。"""
-        snapshot_top_path = Path(snapshot_top_dir)
+        snapshot_top_path = Path(snapshots_dir)
         if not snapshot_top_path.exists() or not snapshot_top_path.is_dir():
             return []
 
@@ -67,13 +66,13 @@ class CommandSearch(Command):
 
     def _load_latest_snapshot_assoc(self) -> RepoAssoc:
         """最新リポジトリ一覧スナップショットファイルを読み込んで返す。"""
-        snapshot_top_dir = self.get_snapshot_top_dir()
-        snapshot_ids = self._collect_snapshot_ids(snapshot_top_dir)
+        snapshots_dir = self.get_snapshots_dir()
+        snapshot_ids = self._collect_snapshot_ids(snapshots_dir)
         if not snapshot_ids:
-            raise FileNotFoundError(f"スナップショットトップディレクトリ配下にスナップショットが存在しません: {snapshot_top_dir}")
+            raise FileNotFoundError(f"スナップショットトップディレクトリ配下にスナップショットが存在しません: {snapshots_dir}")
 
         latest_id = max(snapshot_ids)
-        snapshot_path = snapshot_top_dir / str(latest_id) / "snapshot.yaml"
+        snapshot_path = snapshots_dir / str(latest_id) / "snapshot.yaml"
         if not snapshot_path.exists():
             raise FileNotFoundError(f"リポジトリ一覧スナップショットファイルが存在しません: {snapshot_path}")
 
@@ -140,19 +139,40 @@ class CommandSearch(Command):
             if isinstance(item.get("name"), str) and pattern in cast(str, item["name"])
         ]
 
+    @staticmethod
+    def _owner_matches(item: RepoItem, github_user: str) -> bool:
+        """`owner` 等から GitHub ユーザー名が一致するか判定する。"""
+        gu = github_user.lower().strip()
+        owner = item.get("owner")
+        if isinstance(owner, str) and owner.lower() == gu:
+            return True
+        if isinstance(owner, dict):
+            login = owner.get("login")
+            if isinstance(login, str) and login.lower() == gu:
+                return True
+        nwo = item.get("nameWithOwner")
+        if isinstance(nwo, str) and "/" in nwo:
+            prefix = nwo.split("/", 1)[0]
+            if prefix.lower() == gu:
+                return True
+        return False
+
     def search_repos(
         self,
         search_name: str,
         name_pattern: str | None = None,
+        user: str | None = None,
     ) -> list[RepoItem]:
-        """検索種別と `--name` 条件でスナップショットを絞り込む。"""
-        if search_name not in self.SEARCH_KINDS:
+        """検索種別と `--name` / `--user` 条件でスナップショットを絞り込む。"""
+        if search_name not in SEARCH_KINDS:
             raise ValueError(f"unsupported search_name: {search_name}")
 
         assoc = self._load_latest_snapshot_assoc()
         if search_name == "latest10":
-            candidates = self._take_latest_n_by_created_at(assoc, 10)
-        else:
-            candidates = self._filter_by_visibility(assoc, search_name)
+            return self._take_latest_n_by_created_at(assoc, 10)
 
-        return self._filter_by_name_substring(candidates, name_pattern)
+        candidates = self._filter_by_visibility(assoc, search_name)
+        candidates = self._filter_by_name_substring(candidates, name_pattern)
+        if user is not None and user != "":
+            candidates = [item for item in candidates if self._owner_matches(item, user)]
+        return candidates

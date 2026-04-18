@@ -3,7 +3,7 @@
 ## 概要
 
 リポジトリ一覧の取得・保存・補正を担当するコマンドクラス。  
-`gh repo list` の実行、スナップショット保存、`gists.yaml` のマージ更新、ストレージ整合性補正を提供する。
+`gh repo list` の実行、スナップショット保存、`repos.yaml`（リポジトリ一覧ファイル）のマージ更新、ストレージ整合性補正を提供する。
 
 **モジュール:** `ghrepo.command_list`  
 **基底クラス:** `yklibpy.command.Command`
@@ -45,13 +45,13 @@ def get_snapshots_store(self) -> Storex
 
 `snapshots.yaml` に対応する `Storex` を返す。
 
-### `get_gists_store`
+### `get_repos_store`
 
 ```python
-def get_gists_store(self) -> Storex
+def get_repos_store(self) -> Storex
 ```
 
-`gists.yaml` に対応する `Storex` を返す。
+`repos.yaml` に対応する `Storex` を返す。
 
 ### `get_snapshots_path`
 
@@ -77,13 +77,13 @@ def get_snapshots_dir(self) -> Path
 
 スナップショット保存先の `snapshots` ディレクトリパスを返す。
 
-### `get_next_snapshot_count`
+### `get_next_snapshot_id`
 
 ```python
-def get_next_snapshot_count(self) -> int
+def get_next_snapshot_id(self) -> int
 ```
 
-`snapshots.yaml` の最大 ID とディレクトリ上の最大 ID のいずれか大きい方に +1 した次回スナップショット番号を返す。
+`snapshots.yaml` に記録された ID とスナップショットディレクトリ上の ID の最大値のいずれか大きい方に 1 を加えた、次に採番するスナップショット ID を返す。
 
 ### `get_command_for_repository`
 
@@ -103,7 +103,7 @@ CLI 引数と設定値から実行すべき `gh repo list` コマンド文字列
 def load_latest_assoc(self) -> RepoAssoc
 ```
 
-`gists.yaml` を読み込み、リポジトリ名をキーとする辞書として返す。
+`repos.yaml` を読み込み、リポジトリ名をキーとする辞書として返す。
 
 ### `get_all_repos`
 
@@ -140,7 +140,7 @@ def save_snapshot(self, snapshot_id: int, timestamp: str, assoc: RepoAssoc) -> N
 
 1. `snapshots/<snapshot-id>/snapshot.yaml` を出力する。
 2. `snapshots.yaml` に `<snapshot-id>: <timestamp>` を反映する。
-3. `gists.yaml` をマージ更新する（同一 repo-id の差分がある場合のみ上書き）。
+3. `repos.yaml` をマージ更新する（同一 repo-id の差分がある場合のみ上書き）。
 
 ### `fix_storage`
 
@@ -156,7 +156,7 @@ def fix_storage(self, verbose: bool = False) -> dict[str, Any]
 |---|---|---|
 | `removed_empty_directories` | `int` | 削除した空ディレクトリ数 |
 | `max_snapshot_id` | `int \| None` | ディレクトリ上の最大スナップショット ID |
-| `snapshots_updated` | `bool` | `snapshots.yaml` を更新したか |
+| `snapshots_record_updated` | `bool` | `snapshots.yaml` を更新したか |
 | `warnings` | `list[str]` | 警告メッセージ一覧 |
 
 ---
@@ -191,18 +191,18 @@ def _collect_snapshot_ids(snapshots_dir: str | Path) -> list[int]
 `snapshots` ディレクトリ配下の数値ディレクトリ名を昇順で収集して返す。  
 数値に解釈できないディレクトリ名は対象外。
 
-### `_normalize_snapshots_assoc`
+### `_normalize_snapshots_record_assoc`
 
 ```python
 @staticmethod
-def _normalize_snapshots_assoc(
+def _normalize_snapshots_record_assoc(
     snapshots_assoc: dict[Any, Any],
     snapshot_ids: list[int],
     fallback_timestamp: str,
 ) -> tuple[dict[int, str], bool]
 ```
 
-`snapshots.yaml` の内容を正規化し、ディレクトリ上の最大 ID に合わせて補正する。
+`snapshots.yaml` の内容を型整形し、ディレクトリ上の最大 ID に合わせて余分な ID の除去や欠落エントリの補完を行う。
 
 **戻り値:** `(正規化済み辞書, 変更があったか)`
 
@@ -216,5 +216,5 @@ def _normalize_snapshots_assoc(
 | `_set_db_value` | `AppStore` 内キャッシュ値を更新する |
 | `_load_snapshots_assoc` | `snapshots.yaml` を読み込み正規化して返す |
 | `_output_snapshots_assoc` | `snapshots.yaml` を永続化し内部値を同期する |
-| `_merge_into_gists` | `gists.yaml` に新スナップショットをマージ更新する |
-| `_coerce_snapshots_assoc` | 辞書キー・値を保存型へ整形する（静的） |
+| `_merge_into_repos` | `repos.yaml` に新スナップショットをマージ更新する |
+| `_coerce_snapshots_record_assoc` | 辞書キー・値を保存型へ型整形のみ行う（静的）。`_normalize_snapshots_record_assoc` はこれに加え、余分な ID の除去や最大 ID エントリの補完も行う |

@@ -44,7 +44,7 @@ class CommandList(Command):
             self.appstore.user
         ] = data
 
-    def get_snapshots_record_store(self) -> Storex:
+    def get_snapshots_store(self) -> Storex:
         """スナップショット作成記録ファイル (`snapshots.yaml`) に対応する `Storex` を返す。"""
         return self._get_store(AppConfigx.BASE_NAME_SNAPSHOTS)
 
@@ -52,20 +52,20 @@ class CommandList(Command):
         """`repos.yaml` に対応する `Storex` を返す。"""
         return self._get_store(AppConfigx.BASE_NAME_REPOS)
 
-    def get_snapshots_record_path(self) -> Path:
+    def get_snapshots_path(self) -> Path:
         """スナップショット作成記録ファイル (`snapshots.yaml`) の実ファイルパスを返す。"""
-        return self.get_snapshots_record_store().get_path()
+        return self.get_snapshots_store().get_path()
 
     def get_user_dir(self) -> Path:
         """対象ユーザーの保存ルートディレクトリを返す。"""
-        return self.get_snapshots_record_path().parent
+        return self.get_snapshots_path().parent
 
-    def get_snapshot_top_dir(self) -> Path:
+    def get_snapshots_dir(self) -> Path:
         """スナップショットトップディレクトリ (`snapshots/`) のパスを返す。"""
         return self.get_user_dir() / AppConfigx.SNAPSHOT_TOP_DIR_NAME
 
     @staticmethod
-    def _coerce_snapshots_record_assoc(snapshots_assoc: dict[Any, Any]) -> dict[int, str]:
+    def _coerce_snapshots_assoc(snapshots_assoc: dict[Any, Any]) -> dict[int, str]:
         """スナップショット作成記録ファイルの辞書キーと値を保存用の型へそろえる。"""
         normalized: dict[int, str] = {}
         for key, value in snapshots_assoc.items():
@@ -79,31 +79,31 @@ class CommandList(Command):
 
         return dict(sorted(normalized.items()))
 
-    def _load_snapshots_record_assoc(self) -> dict[int, str]:
+    def _load_snapshots_assoc(self) -> dict[int, str]:
         """保存済みスナップショット作成記録ファイルを読み込み、正規化して返す。"""
-        loaded_value = self.get_snapshots_record_store().load()
+        loaded_value = self.get_snapshots_store().load()
         if not isinstance(loaded_value, dict):
             return {}
-        return self._coerce_snapshots_record_assoc(loaded_value)
+        return self._coerce_snapshots_assoc(loaded_value)
 
-    def load_repos_assoc(self) -> RepoAssoc:
+    def load_latest_assoc(self) -> RepoAssoc:
         """`repos.yaml` を読み込み、辞書として返す。"""
         loaded_value = self.get_repos_store().load()
         if not isinstance(loaded_value, dict):
             return {}
         return cast(RepoAssoc, loaded_value)
 
-    def _output_snapshots_record_assoc(self, snapshots_assoc: dict[int, str]) -> None:
+    def _output_snapshots_assoc(self, snapshots_assoc: dict[int, str]) -> None:
         """スナップショット作成記録ファイルを永続化し、`AppStore` 内の値も同期する。"""
         self.appstore.output_db(
             AppConfigx.BASE_NAME_SNAPSHOTS, cast(dict[str, Any], snapshots_assoc)
         )
         self._set_db_value(AppConfigx.BASE_NAME_SNAPSHOTS, snapshots_assoc)
 
-    def get_next_snapshot_id(self) -> int:
+    def get_next_snapshot_count(self) -> int:
         """既存スナップショットIDの最大値を参照して次回スナップショットIDを返す。"""
-        snapshots_assoc = self._load_snapshots_record_assoc()
-        snapshot_ids = self._collect_snapshot_ids(self.get_snapshot_top_dir())
+        snapshots_assoc = self._load_snapshots_assoc()
+        snapshot_ids = self._collect_snapshot_ids(self.get_snapshots_dir())
         max_record_snapshot_id = max(snapshots_assoc.keys(), default=0)
         max_snapshot_id = max(snapshot_ids, default=0)
         return max(max_record_snapshot_id, max_snapshot_id) + 1
@@ -151,17 +151,19 @@ class CommandList(Command):
         return {cast(str, item[key]): item for item in array}
 
     def get_all_repos(
-        self, args: argparse.Namespace, snapshot_id: int
+        self, args: argparse.Namespace, appstore: AppStore, snapshot_id: int
     ) -> RepoAssoc:
         """GitHub CLI で取得した一覧に管理用フィールドを付与して返す。
 
         Args:
             args: `list` サブコマンドの引数。
+            appstore: 設定・DB ファイルアクセスオブジェクト。
             snapshot_id: 今回付与するスナップショットID。
 
         Returns:
             リポジトリ名をキーとする取得結果。
         """
+        assert appstore is self.appstore
         command_line = self.get_command_for_repository(args)
         json_str = self.run_command_simple(command_line)
         try:
@@ -235,16 +237,16 @@ class CommandList(Command):
         3. `repos.yaml` をマージ更新する。
         """
         # 1. snapshots/<snapshot-id>/snapshot.yaml を出力する
-        snapshot_dir = self.get_snapshot_top_dir() / str(snapshot_id)
+        snapshot_dir = self.get_snapshots_dir() / str(snapshot_id)
         snapshot_path = snapshot_dir / "snapshot.yaml"
         snapshot_dir.mkdir(parents=True, exist_ok=True)
         with snapshot_path.open("w", encoding="utf-8") as snapshot_file:
             yaml.safe_dump(assoc, snapshot_file, allow_unicode=True, sort_keys=True)
 
         # 2. snapshots.yaml を更新する
-        snapshots_assoc = self._load_snapshots_record_assoc()
+        snapshots_assoc = self._load_snapshots_assoc()
         snapshots_assoc[snapshot_id] = timestamp
-        self._output_snapshots_record_assoc(dict(sorted(snapshots_assoc.items())))
+        self._output_snapshots_assoc(dict(sorted(snapshots_assoc.items())))
 
         # 3. repos.yaml をマージ更新する
         self._merge_into_repos(assoc)
@@ -273,12 +275,12 @@ class CommandList(Command):
         return removed_count
 
     @staticmethod
-    def _collect_snapshot_ids(snapshot_top_dir: str | Path) -> list[int]:
+    def _collect_snapshot_ids(snapshots_dir: str | Path) -> list[int]:
         """スナップショットトップディレクトリ配下の数値ディレクトリ名を昇順で収集する。
 
         数値に解釈できないディレクトリ名は対象に含めない。
         """
-        snapshot_top_path = Path(snapshot_top_dir)
+        snapshot_top_path = Path(snapshots_dir)
         if not snapshot_top_path.exists() or not snapshot_top_path.is_dir():
             return []
 
@@ -297,7 +299,7 @@ class CommandList(Command):
         return ids
 
     @staticmethod
-    def _normalize_snapshots_record_assoc(
+    def _normalize_snapshots_assoc(
         snapshots_assoc: dict[Any, Any],
         snapshot_ids: list[int],
         fallback_timestamp: str,
@@ -363,32 +365,32 @@ class CommandList(Command):
         """
         warnings: list[str] = []
         user_dir = self.get_user_dir()
-        snapshot_top_dir = self.get_snapshot_top_dir()
+        snapshots_dir = self.get_snapshots_dir()
 
         removed_empty_directories = self._remove_empty_directories(user_dir)
-        snapshot_ids = self._collect_snapshot_ids(snapshot_top_dir)
-        if not snapshot_top_dir.exists():
+        snapshot_ids = self._collect_snapshot_ids(snapshots_dir)
+        if not snapshots_dir.exists():
             warnings.append("スナップショットトップディレクトリが存在しません")
 
-        snapshots_assoc = self._load_snapshots_record_assoc()
+        snapshots_assoc = self._load_snapshots_assoc()
         fallback_timestamp = ""
         if snapshots_assoc:
             fallback_timestamp = snapshots_assoc[max(snapshots_assoc)]
         if fallback_timestamp == "":
             fallback_timestamp = datetime.now().astimezone().isoformat(timespec="seconds")
 
-        normalized_assoc, snapshots_record_updated = self._normalize_snapshots_record_assoc(
+        normalized_assoc, snapshots_updated = self._normalize_snapshots_assoc(
             snapshots_assoc, snapshot_ids, fallback_timestamp
         )
-        snapshots_record_path = self.get_snapshots_record_path()
-        snapshots_record_exists_before = snapshots_record_path.exists()
-        if snapshots_record_updated or not snapshots_record_exists_before:
-            self._output_snapshots_record_assoc(normalized_assoc)
+        snapshots_path = self.get_snapshots_path()
+        snapshots_exists_before = snapshots_path.exists()
+        if snapshots_updated or not snapshots_exists_before:
+            self._output_snapshots_assoc(normalized_assoc)
 
         result: dict[str, Any] = {
             "removed_empty_directories": removed_empty_directories,
             "max_snapshot_id": max(snapshot_ids, default=None),
-            "snapshots_record_updated": snapshots_record_updated or not snapshots_record_exists_before,
+            "snapshots_updated": snapshots_updated or not snapshots_exists_before,
             "warnings": warnings,
         }
         if verbose and warnings:

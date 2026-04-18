@@ -51,7 +51,7 @@
 | 用語 | ファイル名 | 格納先 |
 |---|---|---|
 | コンフィグファイル | `config.yaml` | コンフィグディレクトリ |
-| リポジトリ一覧ファイル | `gists.yaml` | ユーザディレクトリ |
+| リポジトリ一覧ファイル | `repos.yaml` | ユーザディレクトリ |
 | スナップショット作成記録ファイル | `snapshots.yaml` | ユーザディレクトリ |
 
 ## 4. 保存構造
@@ -63,7 +63,7 @@
   config.yaml          # JSON_FIELDS と USER を含む
 
 <ユーザディレクトリ>
-  gists.yaml           # 空の辞書 {}
+  repos.yaml           # 空の辞書 {}
   snapshots.yaml       # 空の辞書 {}
   snapshots/           # 以後の `list` 実行で作成される
 ```
@@ -92,7 +92,7 @@ USER: <ユーザ名>
 - `JSON_FIELDS` には少なくとも `visibility` が含まれること。
 - `USER` には確定したユーザ名を設定すること。
 
-### 4.3 `gists.yaml` の初期形式
+### 4.3 `repos.yaml` の初期形式
 
 ```yaml
 {}
@@ -113,7 +113,7 @@ USER: <ユーザ名>
 1. コンフィグディレクトリに `config.yaml` を出力する。
 2. `config.yaml` は YAML 連想配列として少なくとも `JSON_FIELDS` と `USER` のキーを持つ。
 3. `JSON_FIELDS` には少なくとも `visibility` が含まれること。
-4. ユーザディレクトリに `gists.yaml` を空の辞書 `{}` として出力する。
+4. ユーザディレクトリに `repos.yaml` を空の辞書 `{}` として出力する。
 5. ユーザディレクトリに `snapshots.yaml` を空の辞書 `{}` として出力する。
 
 ### 5.2 冪等性
@@ -121,7 +121,7 @@ USER: <ユーザ名>
 `setup` は既に初期化済みの環境に対して再実行されても安全でなければならない。
 
 - `config.yaml` が既に存在する場合は上書きする。
-- `gists.yaml` が既に存在する場合は上書きしない（既存データを保護する）。
+- `repos.yaml` が既に存在する場合は上書きしない（既存データを保護する）。
 - `snapshots.yaml` が既に存在する場合は上書きしない（既存データを保護する）。
 
 ### 5.3 以後の `list` への前提
@@ -167,7 +167,7 @@ ghrepo setup [--user USER]
 動作:
 
 - コンフィグディレクトリに `config.yaml` を生成する。
-- ユーザディレクトリに `gists.yaml` と `snapshots.yaml` を空の辞書で生成する。
+- ユーザディレクトリに `repos.yaml` と `snapshots.yaml` を空の辞書で生成する。
 
 ### 6.2 `Ghrepo`
 
@@ -187,7 +187,7 @@ def setup(cls, args: argparse.Namespace) -> None
 1. ユーザ名を確定する（`args.user` が未指定の場合は認証済みユーザを使用）。
 2. 対象ユーザの `AppStore` を初期化する。
 3. `CommandSetup` を生成する。
-4. `CommandSetup.run(...)` を呼び出し、`config.yaml`・`gists.yaml`・`snapshots.yaml` を初期化する。
+4. `CommandSetup.run(...)` を呼び出し、`config.yaml`・`repos.yaml`・`snapshots.yaml` を初期化する。
 
 副作用:
 
@@ -226,19 +226,19 @@ def run(self, key: str, default_json_fields: list[str]) -> None
 仕様:
 
 - コンフィグディレクトリに `config.yaml` を出力する。
-- ユーザディレクトリに `gists.yaml` を空の辞書 `{}` で出力する。
+- ユーザディレクトリに `repos.yaml` を空の辞書 `{}` で出力する。
 - ユーザディレクトリに `snapshots.yaml` を空の辞書 `{}` で出力する。
 
 制約:
 
 - `default_json_fields` には少なくとも `visibility` が含まれること。
-- `gists.yaml` および `snapshots.yaml` が既に存在する場合は上書きしない。
+- `repos.yaml` および `snapshots.yaml` が既に存在する場合は上書きしない。
 
 ## 7. 正常系の動作要約
 
 1. ユーザ名を確定する。
 2. コンフィグディレクトリに `config.yaml` を出力する（`JSON_FIELDS` に `visibility` を含める）。
-3. ユーザディレクトリに `gists.yaml` を空の辞書 `{}` として出力する（既存時はスキップ）。
+3. ユーザディレクトリに `repos.yaml` を空の辞書 `{}` として出力する（既存時はスキップ）。
 4. ユーザディレクトリに `snapshots.yaml` を空の辞書 `{}` として出力する（既存時はスキップ）。
 
 ## 8. 異常系
