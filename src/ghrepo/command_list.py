@@ -6,116 +6,15 @@ from typing import Any, cast
 
 import yaml
 from yklibpy.command import Command
+from yklibpy.common.loggerx import Loggerx
 from yklibpy.config.appconfig import AppConfig
 from yklibpy.db.appstore import AppStore
 from yklibpy.db.storex import Storex
-from yklibpy.common.loggerx import Loggerx
+
+from ghrepo.appconfigx import AppConfigx
 
 type RepoItem = dict[str, Any]
 type RepoAssoc = dict[str, RepoItem]
-
-
-def remove_empty_directories(root_dir: str | Path) -> int:
-    """指定ディレクトリ配下の空ディレクトリを末端から削除する。"""
-    root_path = Path(root_dir)
-    if not root_path.exists():
-        return 0
-
-    removed_count = 0
-    directory_paths = sorted(
-        (path for path in root_path.rglob("*") if path.is_dir()),
-        key=lambda path: len(path.parts),
-        reverse=True,
-    )
-    for directory_path in directory_paths:
-        try:
-            if not any(directory_path.iterdir()):
-                directory_path.rmdir()
-                removed_count += 1
-        except OSError:
-            continue
-
-    return removed_count
-
-
-def collect_repolist_counts(repolist_dir: str | Path) -> list[int]:
-    """`repolist` 配下の数値ディレクトリ名を昇順で収集する。"""
-    repolist_path = Path(repolist_dir)
-    if not repolist_path.exists() or not repolist_path.is_dir():
-        return []
-
-    counts: list[int] = []
-    for child_path in repolist_path.iterdir():
-        if not child_path.is_dir():
-            continue
-        try:
-            count = int(child_path.name)
-        except ValueError:
-            continue
-        if count > 0:
-            counts.append(count)
-
-    counts.sort()
-    return counts
-
-
-def normalize_fetch_assoc(
-    fetch_assoc: dict[Any, Any],
-    repolist_counts: list[int],
-    fallback_timestamp: str,
-) -> tuple[dict[int, str], bool]:
-    """`fetch` 情報を数値キー辞書へ正規化し、最新件数に合わせて補正する。
-
-    Args:
-        fetch_assoc: 永続化済みの取得回数と日時の対応。
-        repolist_counts: `repolist` ディレクトリから得た有効な件数一覧。
-        fallback_timestamp: 最新件数の補完に使う既定日時。
-
-    Returns:
-        正規化後の `fetch` 辞書と、入力から内容を変更したかどうか。
-    """
-    normalized_fetch: dict[int, str] = {}
-    changed = False
-
-    for key, value in fetch_assoc.items():
-        try:
-            count_key = int(key)
-        except (TypeError, ValueError):
-            changed = True
-            continue
-
-        if count_key <= 0:
-            changed = True
-            continue
-
-        string_value = str(value)
-        if not isinstance(key, int) or not isinstance(value, str):
-            changed = True
-        normalized_fetch[count_key] = string_value
-
-    if not repolist_counts:
-        return {}, changed or bool(normalized_fetch)
-
-    max_repolist_count = max(repolist_counts)
-    trimmed_fetch = {
-        key: value
-        for key, value in normalized_fetch.items()
-        if key <= max_repolist_count
-    }
-    if trimmed_fetch != normalized_fetch:
-        changed = True
-
-    if max_repolist_count not in trimmed_fetch:
-        latest_timestamp = ""
-        if trimmed_fetch:
-            latest_timestamp = trimmed_fetch[max(trimmed_fetch)]
-        elif normalized_fetch:
-            latest_timestamp = normalized_fetch[max(normalized_fetch)]
-        trimmed_fetch[max_repolist_count] = latest_timestamp or fallback_timestamp
-        changed = True
-
-    sorted_fetch = dict(sorted(trimmed_fetch.items()))
-    return sorted_fetch, changed
 
 
 class CommandList(Command):
@@ -145,69 +44,69 @@ class CommandList(Command):
             self.appstore.user
         ] = data
 
-    def get_fetch_store(self) -> Storex:
-        """`fetch` DB に対応する `Storex` を返す。"""
-        return self._get_store(AppConfig.BASE_NAME_FETCH)
+    def get_snapshots_record_store(self) -> Storex:
+        """スナップショット作成記録ファイル (`snapshots.yaml`) に対応する `Storex` を返す。"""
+        return self._get_store(AppConfigx.BASE_NAME_SNAPSHOTS)
 
-    def get_db_store(self) -> Storex:
-        """最新リポジトリ DB に対応する `Storex` を返す。"""
-        return self._get_store("db")
+    def get_repos_store(self) -> Storex:
+        """`repos.yaml` に対応する `Storex` を返す。"""
+        return self._get_store(AppConfigx.BASE_NAME_REPOS)
 
-    def get_fetch_path(self) -> Path:
-        """`fetch` DB の実ファイルパスを返す。"""
-        return self.get_fetch_store().get_path()
+    def get_snapshots_record_path(self) -> Path:
+        """スナップショット作成記録ファイル (`snapshots.yaml`) の実ファイルパスを返す。"""
+        return self.get_snapshots_record_store().get_path()
 
     def get_user_dir(self) -> Path:
         """対象ユーザーの保存ルートディレクトリを返す。"""
-        return self.get_fetch_path().parent
+        return self.get_snapshots_record_path().parent
 
-    def get_repolist_dir(self) -> Path:
-        """スナップショット保存先の `repolist` ディレクトリを返す。"""
-        return self.get_user_dir() / "repolist"
+    def get_snapshot_top_dir(self) -> Path:
+        """スナップショットトップディレクトリ (`snapshots/`) のパスを返す。"""
+        return self.get_user_dir() / AppConfigx.SNAPSHOT_TOP_DIR_NAME
 
     @staticmethod
-    def coerce_fetch_assoc(fetch_assoc: dict[Any, Any]) -> dict[int, str]:
-        """`fetch` 辞書のキーと値を保存用の型へそろえる。"""
-        normalized_fetch: dict[int, str] = {}
-        for key, value in fetch_assoc.items():
+    def _coerce_snapshots_record_assoc(snapshots_assoc: dict[Any, Any]) -> dict[int, str]:
+        """スナップショット作成記録ファイルの辞書キーと値を保存用の型へそろえる。"""
+        normalized: dict[int, str] = {}
+        for key, value in snapshots_assoc.items():
             try:
-                count_key = int(key)
+                id_key = int(key)
             except (TypeError, ValueError):
                 continue
-            if count_key <= 0:
+            if id_key <= 0:
                 continue
-            normalized_fetch[count_key] = str(value)
+            normalized[id_key] = str(value)
 
-        return dict(sorted(normalized_fetch.items()))
+        return dict(sorted(normalized.items()))
 
-    def load_fetch_assoc(self) -> dict[int, str]:
-        """保存済み `fetch` 情報を読み込み、正規化して返す。"""
-        loaded_value = self.get_fetch_store().load()
+    def _load_snapshots_record_assoc(self) -> dict[int, str]:
+        """保存済みスナップショット作成記録ファイルを読み込み、正規化して返す。"""
+        loaded_value = self.get_snapshots_record_store().load()
         if not isinstance(loaded_value, dict):
             return {}
-        return self.coerce_fetch_assoc(loaded_value)
+        return self._coerce_snapshots_record_assoc(loaded_value)
 
-    def load_latest_assoc(self) -> RepoAssoc:
-        """最新リポジトリ DB を読み込み、辞書として返す。"""
-        loaded_value = self.get_db_store().load()
+    def load_repos_assoc(self) -> RepoAssoc:
+        """`repos.yaml` を読み込み、辞書として返す。"""
+        loaded_value = self.get_repos_store().load()
         if not isinstance(loaded_value, dict):
             return {}
         return cast(RepoAssoc, loaded_value)
 
-    def output_fetch_assoc(self, fetch_assoc: dict[int, str]) -> None:
-        """`fetch` 辞書を永続化し、`AppStore` 内の値も同期する。"""
+    def _output_snapshots_record_assoc(self, snapshots_assoc: dict[int, str]) -> None:
+        """スナップショット作成記録ファイルを永続化し、`AppStore` 内の値も同期する。"""
         self.appstore.output_db(
-            AppConfig.BASE_NAME_FETCH, cast(dict[str, Any], fetch_assoc)
+            AppConfigx.BASE_NAME_SNAPSHOTS, cast(dict[str, Any], snapshots_assoc)
         )
-        self._set_db_value(AppConfig.BASE_NAME_FETCH, fetch_assoc)
+        self._set_db_value(AppConfigx.BASE_NAME_SNAPSHOTS, snapshots_assoc)
 
-    def get_next_snapshot_count(self) -> int:
-        """既存保存件数を参照して次回スナップショット番号を返す。"""
-        fetch_assoc = self.load_fetch_assoc()
-        repolist_counts = collect_repolist_counts(self.get_repolist_dir())
-        max_fetch_count = max(fetch_assoc.keys(), default=0)
-        max_repolist_count = max(repolist_counts, default=0)
-        return max(max_fetch_count, max_repolist_count) + 1
+    def get_next_snapshot_id(self) -> int:
+        """既存スナップショットIDの最大値を参照して次回スナップショットIDを返す。"""
+        snapshots_assoc = self._load_snapshots_record_assoc()
+        snapshot_ids = self._collect_snapshot_ids(self.get_snapshot_top_dir())
+        max_record_snapshot_id = max(snapshots_assoc.keys(), default=0)
+        max_snapshot_id = max(snapshot_ids, default=0)
+        return max(max_record_snapshot_id, max_snapshot_id) + 1
 
     def get_command_for_repository(self, args: argparse.Namespace) -> str:
         """CLI 引数と設定値から `gh repo list` コマンド文字列を組み立てる。"""
@@ -252,20 +151,17 @@ class CommandList(Command):
         return {cast(str, item[key]): item for item in array}
 
     def get_all_repos(
-        self, args: argparse.Namespace, appstore: AppStore, count: int
+        self, args: argparse.Namespace, snapshot_id: int
     ) -> RepoAssoc:
         """GitHub CLI で取得した一覧に管理用フィールドを付与して返す。
 
         Args:
             args: `list` サブコマンドの引数。
-            appstore: 互換性維持のため受け取る未使用引数。
-            count: 今回付与する取得回数。
+            snapshot_id: 今回付与するスナップショットID。
 
         Returns:
             リポジトリ名をキーとする取得結果。
         """
-        del appstore
-
         command_line = self.get_command_for_repository(args)
         json_str = self.run_command_simple(command_line)
         try:
@@ -302,7 +198,7 @@ class CommandList(Command):
 
         assoc = self.array_to_dict(json_array, "name")
         for name, item in list(assoc.items()):
-            item["count"] = count
+            item["snapshot-id"] = snapshot_id
             item["valid"] = True
             item["field_1"] = ""
             item["field_2"] = ""
@@ -311,54 +207,188 @@ class CommandList(Command):
 
         return assoc
 
+    def _merge_into_repos(self, new_assoc: RepoAssoc) -> None:
+        """`repos.yaml` に新スナップショットの内容をマージ更新する。
+
+        同一リポジトリIDのレコードが存在し内容に差異があれば新しいレコードで上書きする。
+        差異がなければ更新しない。
+        """
+        repos_store = self.get_repos_store()
+        loaded = repos_store.load()
+        repos_assoc: RepoAssoc = cast(RepoAssoc, loaded) if isinstance(loaded, dict) else {}
+
+        for repo_id, item in new_assoc.items():
+            if repo_id not in repos_assoc or repos_assoc[repo_id] != item:
+                repos_assoc[repo_id] = item
+
+        repos_store.output(repos_assoc)
+        self._set_db_value(AppConfigx.BASE_NAME_REPOS, repos_assoc)
+
     def save_snapshot(
-        self, count: int, timestamp: str, assoc: RepoAssoc
+        self, snapshot_id: int, timestamp: str, assoc: RepoAssoc
     ) -> None:
-        """取得結果を件数別スナップショットとして保存し、`fetch` も更新する。"""
-        snapshot_dir = self.get_repolist_dir() / str(count)
-        snapshot_path = snapshot_dir / "db.yaml"
+        """取得結果をスナップショットとして保存し、`snapshots.yaml` と `repos.yaml` も更新する。
+
+        更新順序:
+        1. `snapshots/<snapshot-id>/snapshot.yaml` を出力する。
+        2. `snapshots.yaml` に `<snapshot-id>: <timestamp>` を反映する。
+        3. `repos.yaml` をマージ更新する。
+        """
+        # 1. snapshots/<snapshot-id>/snapshot.yaml を出力する
+        snapshot_dir = self.get_snapshot_top_dir() / str(snapshot_id)
+        snapshot_path = snapshot_dir / "snapshot.yaml"
         snapshot_dir.mkdir(parents=True, exist_ok=True)
         with snapshot_path.open("w", encoding="utf-8") as snapshot_file:
             yaml.safe_dump(assoc, snapshot_file, allow_unicode=True, sort_keys=True)
 
-        fetch_assoc = self.load_fetch_assoc()
-        fetch_assoc[count] = timestamp
-        self.output_fetch_assoc(dict(sorted(fetch_assoc.items())))
+        # 2. snapshots.yaml を更新する
+        snapshots_assoc = self._load_snapshots_record_assoc()
+        snapshots_assoc[snapshot_id] = timestamp
+        self._output_snapshots_record_assoc(dict(sorted(snapshots_assoc.items())))
+
+        # 3. repos.yaml をマージ更新する
+        self._merge_into_repos(assoc)
+
+    @staticmethod
+    def _remove_empty_directories(root_dir: str | Path) -> int:
+        """指定ディレクトリ配下の空ディレクトリを末端から削除する。"""
+        root_path = Path(root_dir)
+        if not root_path.exists():
+            return 0
+
+        removed_count = 0
+        directory_paths = sorted(
+            (path for path in root_path.rglob("*") if path.is_dir()),
+            key=lambda path: len(path.parts),
+            reverse=True,
+        )
+        for directory_path in directory_paths:
+            try:
+                if not any(directory_path.iterdir()):
+                    directory_path.rmdir()
+                    removed_count += 1
+            except OSError:
+                continue
+
+        return removed_count
+
+    @staticmethod
+    def _collect_snapshot_ids(snapshot_top_dir: str | Path) -> list[int]:
+        """スナップショットトップディレクトリ配下の数値ディレクトリ名を昇順で収集する。
+
+        数値に解釈できないディレクトリ名は対象に含めない。
+        """
+        snapshot_top_path = Path(snapshot_top_dir)
+        if not snapshot_top_path.exists() or not snapshot_top_path.is_dir():
+            return []
+
+        ids: list[int] = []
+        for child_path in snapshot_top_path.iterdir():
+            if not child_path.is_dir():
+                continue
+            try:
+                snapshot_id = int(child_path.name)
+            except ValueError:
+                continue
+            if snapshot_id > 0:
+                ids.append(snapshot_id)
+
+        ids.sort()
+        return ids
+
+    @staticmethod
+    def _normalize_snapshots_record_assoc(
+        snapshots_assoc: dict[Any, Any],
+        snapshot_ids: list[int],
+        fallback_timestamp: str,
+    ) -> tuple[dict[int, str], bool]:
+        """スナップショット作成記録ファイルの内容を数値キー辞書へ正規化し、最大IDに合わせて補正する。
+
+        Args:
+            snapshots_assoc: 永続化済みのスナップショットID と日時の対応。
+            snapshot_ids: スナップショットトップディレクトリから得た有効なID一覧。
+            fallback_timestamp: 最大IDの補完に使う既定日時。
+
+        Returns:
+            正規化後の辞書と、入力から内容を変更したかどうか。
+        """
+        normalized: dict[int, str] = {}
+        changed = False
+
+        for key, value in snapshots_assoc.items():
+            try:
+                id_key = int(key)
+            except (TypeError, ValueError):
+                changed = True
+                continue
+
+            if id_key <= 0:
+                changed = True
+                continue
+
+            string_value = str(value)
+            if not isinstance(key, int) or not isinstance(value, str):
+                changed = True
+            normalized[id_key] = string_value
+
+        if not snapshot_ids:
+            return {}, changed or bool(normalized)
+
+        max_snapshot_id = max(snapshot_ids)
+        trimmed = {
+            key: value
+            for key, value in normalized.items()
+            if key <= max_snapshot_id
+        }
+        if trimmed != normalized:
+            changed = True
+
+        if max_snapshot_id not in trimmed:
+            latest_timestamp = ""
+            if trimmed:
+                latest_timestamp = trimmed[max(trimmed)]
+            elif normalized:
+                latest_timestamp = normalized[max(normalized)]
+            trimmed[max_snapshot_id] = latest_timestamp or fallback_timestamp
+            changed = True
+
+        sorted_result = dict(sorted(trimmed.items()))
+        return sorted_result, changed
 
     def fix_storage(self, verbose: bool = False) -> dict[str, Any]:
         """保存済みスナップショット構成を点検し、必要な補正結果を返す。
 
         Returns:
-            削除件数、最新件数、`fetch` 更新有無、警告一覧を含む結果辞書。
+            削除件数、最大スナップショットID、`snapshots.yaml` 更新有無、警告一覧を含む結果辞書。
         """
         warnings: list[str] = []
         user_dir = self.get_user_dir()
-        repolist_dir = self.get_repolist_dir()
+        snapshot_top_dir = self.get_snapshot_top_dir()
 
-        removed_empty_directories = remove_empty_directories(user_dir)
-        repolist_counts = collect_repolist_counts(repolist_dir)
-        if not repolist_dir.exists():
-            warnings.append("repolist directory does not exist")
+        removed_empty_directories = self._remove_empty_directories(user_dir)
+        snapshot_ids = self._collect_snapshot_ids(snapshot_top_dir)
+        if not snapshot_top_dir.exists():
+            warnings.append("スナップショットトップディレクトリが存在しません")
 
-        fetch_assoc = self.load_fetch_assoc()
+        snapshots_assoc = self._load_snapshots_record_assoc()
         fallback_timestamp = ""
-        if fetch_assoc:
-            fallback_timestamp = fetch_assoc[max(fetch_assoc)]
+        if snapshots_assoc:
+            fallback_timestamp = snapshots_assoc[max(snapshots_assoc)]
         if fallback_timestamp == "":
             fallback_timestamp = datetime.now().astimezone().isoformat(timespec="seconds")
 
-        normalized_fetch_assoc, fetch_updated = normalize_fetch_assoc(
-            fetch_assoc, repolist_counts, fallback_timestamp
+        normalized_assoc, snapshots_record_updated = self._normalize_snapshots_record_assoc(
+            snapshots_assoc, snapshot_ids, fallback_timestamp
         )
-        fetch_path = self.get_fetch_path()
-        fetch_exists_before = fetch_path.exists()
-        if fetch_updated or not fetch_exists_before:
-            self.output_fetch_assoc(normalized_fetch_assoc)
+        snapshots_record_path = self.get_snapshots_record_path()
+        snapshots_record_exists_before = snapshots_record_path.exists()
+        if snapshots_record_updated or not snapshots_record_exists_before:
+            self._output_snapshots_record_assoc(normalized_assoc)
 
-        result = {
+        result: dict[str, Any] = {
             "removed_empty_directories": removed_empty_directories,
-            "max_repolist_count": max(repolist_counts, default=None),
-            "fetch_updated": fetch_updated or not fetch_exists_before,
+            "max_snapshot_id": max(snapshot_ids, default=None),
+            "snapshots_record_updated": snapshots_record_updated or not snapshots_record_exists_before,
             "warnings": warnings,
         }
         if verbose and warnings:

@@ -1,0 +1,7 @@
+links:
+  - target: CLAUDE.md
+    link: AGENTS.md
+
+  - target: CLAUDE.md
+    link: GEMINI.md
+
