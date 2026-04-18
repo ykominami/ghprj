@@ -1,8 +1,9 @@
-# from ghrepo.command import Command
 from yklibpy.command.command import Command
 from yklibpy.command.command_gh_user import CommandGhUser
 from yklibpy.common.util import Util
 from yklibpy.db.appstore import AppStore
+
+from ghrepo.appconfigx import AppConfigx
 
 
 class CommandSetup(Command):
@@ -23,5 +24,5 @@ class CommandSetup(Command):
 
         data = {key: default_json_fields, "USER": self.appstore.user}
         self.appstore.output_config("config", data)
-        self.appstore.output_db("db", {})
-        self.appstore.output_db("fetch", {})
+        self.appstore.output_db(AppConfigx.BASE_NAME_REPOS, {})
+        self.appstore.output_db(AppConfigx.BASE_NAME_SNAPSHOTS, {})

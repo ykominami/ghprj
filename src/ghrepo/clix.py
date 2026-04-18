@@ -38,10 +38,6 @@ class Clix:
         p_list.add_argument("--user", help="GitHub user name")
         p_list.add_argument("--limit", type=int, help="limit the number of repos")
         p_list.add_argument("--json", type=str, help="json output")
-        default_output_file: str = "repos.json"
-        p_list.add_argument(
-            "--output", default=default_output_file, help="Output file name"
-        )
 
         # サブコマンド "fix"
         p_fix: argparse.ArgumentParser = subparsers.add_parser(
@@ -58,7 +54,7 @@ class Clix:
         p_search.set_defaults(func=command_dict["search"])
         p_search.add_argument(
             "search_name",
-            choices=["public", "private", "internal", "latest10"],
+            choices=["public", "private", "both","internal", "latest10"],
             help="search kind",
         )
         p_search.add_argument("--name", help="substring pattern for repository name")

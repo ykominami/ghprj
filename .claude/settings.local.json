@@ -2,7 +2,16 @@
   "permissions": {
     "allow": [
       "Bash(tree:*)",
-      "Bash(uv run:*)"
+      "Bash(uv run:*)",
+      "Bash(grep -v \"^$\")",
+      "Bash(python -m mypy ./src)",
+      "Bash(.venv/Scripts/mypy.exe ./src)",
+      "Bash(.venv/Scripts/python.exe -m mypy ./src)",
+      "Bash(.venv/Scripts/python.exe -m ruff check ./src)",
+      "Bash(cmd *)",
+      "Bash(powershell *)",
+      "Bash(uv --version)",
+      "Bash(/c/Users/ykomi/.local/bin/uv run *)"
     ]
   }
 }
