@@ -64,4 +64,8 @@ flowchart TB
     CommandSearch --> AppConfigx
     CommandSearch --> AppStore
 
+    Cli -,-> CommandSetup
+    Cli -.-> CommandList
+    Cli -.-> CommandSearch
+
 ```
