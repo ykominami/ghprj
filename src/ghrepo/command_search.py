@@ -13,16 +13,23 @@ from ghrepo.appconfigx import AppConfigx
 type RepoItem = dict[str, Any]
 type RepoAssoc = dict[str, RepoItem]
 
-SEARCH_KINDS = {"public", "private", "both", "internal", "latest10"}
+SEARCH_KINDS = {
+    AppConfigx.VISIBILITY_PUBLIC,
+    AppConfigx.VISIBILITY_PRIVATE,
+    AppConfigx.SEARCH_KIND_BOTH,
+    AppConfigx.VISIBILITY_INTERNAL,
+    AppConfigx.SEARCH_KIND_LATEST10,
+}
 
 
 class CommandSearch(Command):
     """保存済みスナップショットを検索するコマンド。"""
 
     def __init__(self, appstore: AppStore, user: str | None) -> None:
+        """検索先となる `AppStore` と実行ユーザー情報を保持する。"""
         self.appstore: AppStore = appstore
         self.user: str | None = user
-        self.config_user: str = cast(str, self.appstore.get_from_config("config", "USER"))
+        self.config_user: str = cast(str, self.appstore.get_from_config(AppConfig.BASE_NAME_CONFIG, AppConfigx.KEY_USER))
 
     def _get_store(self, base_name: str) -> Storex:
         """ユーザー別設定を考慮して対象 `Storex` を返す。"""
@@ -72,7 +79,7 @@ class CommandSearch(Command):
             raise FileNotFoundError(f"スナップショットトップディレクトリ配下にスナップショットが存在しません: {snapshots_dir}")
 
         latest_id = max(snapshot_ids)
-        snapshot_path = snapshots_dir / str(latest_id) / "snapshot.yaml"
+        snapshot_path = snapshots_dir / str(latest_id) / AppConfigx.SNAPSHOT_FILE_NAME
         if not snapshot_path.exists():
             raise FileNotFoundError(f"リポジトリ一覧スナップショットファイルが存在しません: {snapshot_path}")
 
@@ -91,16 +98,16 @@ class CommandSearch(Command):
     @staticmethod
     def _filter_by_visibility(assoc: RepoAssoc, visibility: str) -> list[RepoItem]:
         """`visibility` が一致するレコードを返す。"""
-        if visibility == "both":
-            normalized_visibility = ["public", "private"]
+        if visibility == AppConfigx.SEARCH_KIND_BOTH:
+            normalized_visibility = [AppConfigx.VISIBILITY_PUBLIC, AppConfigx.VISIBILITY_PRIVATE]
         else:
             normalized_visibility = [visibility.lower()]
 
         return [
             item
             for item in assoc.values()
-            if isinstance(item.get("visibility"), str)
-            and cast(str, item["visibility"]).lower() in normalized_visibility
+            if isinstance(item.get(AppConfigx.FIELD_VISIBILITY), str)
+            and cast(str, item[AppConfigx.FIELD_VISIBILITY]).lower() in normalized_visibility
         ]
 
     @staticmethod
@@ -119,11 +126,11 @@ class CommandSearch(Command):
         sorted_items = sorted(
             items,
             key=lambda item: (
-                self._parse_created_at(item.get("createdAt")) is None,
-                -(cast(datetime, self._parse_created_at(item.get("createdAt"))).timestamp())
-                if self._parse_created_at(item.get("createdAt")) is not None
+                self._parse_created_at(item.get(AppConfigx.FIELD_CREATED_AT)) is None,
+                -(cast(datetime, self._parse_created_at(item.get(AppConfigx.FIELD_CREATED_AT))).timestamp())
+                if self._parse_created_at(item.get(AppConfigx.FIELD_CREATED_AT)) is not None
                 else 0.0,
-                str(item.get("name", "")),
+                str(item.get(AppConfigx.FIELD_NAME, "")),
             ),
         )
         return sorted_items[:n]
@@ -136,21 +143,21 @@ class CommandSearch(Command):
         return [
             item
             for item in repos
-            if isinstance(item.get("name"), str) and pattern in cast(str, item["name"])
+            if isinstance(item.get(AppConfigx.FIELD_NAME), str) and pattern in cast(str, item[AppConfigx.FIELD_NAME])
         ]
 
     @staticmethod
     def _owner_matches(item: RepoItem, github_user: str) -> bool:
         """`owner` 等から GitHub ユーザー名が一致するか判定する。"""
         gu = github_user.lower().strip()
-        owner = item.get("owner")
+        owner = item.get(AppConfigx.FIELD_OWNER)
         if isinstance(owner, str) and owner.lower() == gu:
             return True
         if isinstance(owner, dict):
-            login = owner.get("login")
+            login = owner.get(AppConfigx.FIELD_LOGIN)
             if isinstance(login, str) and login.lower() == gu:
                 return True
-        nwo = item.get("nameWithOwner")
+        nwo = item.get(AppConfigx.FIELD_NAME_WITH_OWNER)
         if isinstance(nwo, str) and "/" in nwo:
             prefix = nwo.split("/", 1)[0]
             if prefix.lower() == gu:
@@ -168,8 +175,8 @@ class CommandSearch(Command):
             raise ValueError(f"unsupported search_name: {search_name}")
 
         assoc = self._load_latest_snapshot_assoc()
-        if search_name == "latest10":
-            return self._take_latest_n_by_created_at(assoc, 10)
+        if search_name == AppConfigx.SEARCH_KIND_LATEST10:
+            return self._take_latest_n_by_created_at(assoc, AppConfigx.LATEST_N)
 
         candidates = self._filter_by_visibility(assoc, search_name)
         candidates = self._filter_by_name_substring(candidates, name_pattern)

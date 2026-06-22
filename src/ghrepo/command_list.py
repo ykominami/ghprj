@@ -25,7 +25,7 @@ class CommandList(Command):
         self.appstore: AppStore = appstore
         self.json_fields: list[str] = json_fields
         self.user: str | None = user
-        self.config_user: str = cast(str, self.appstore.get_from_config("config", "USER"))
+        self.config_user: str = cast(str, self.appstore.get_from_config(AppConfig.BASE_NAME_CONFIG, AppConfigx.KEY_USER))
 
     def _get_store(self, base_name: str) -> Storex:
         """ユーザー別設定を考慮して対象 `Storex` を返す。"""
@@ -66,7 +66,10 @@ class CommandList(Command):
 
     @staticmethod
     def _coerce_snapshots_assoc(snapshots_assoc: dict[Any, Any]) -> dict[int, str]:
-        """スナップショット作成記録ファイルの辞書キーと値を保存用の型へそろえる。"""
+        """スナップショット作成記録ファイルのキーと値を保存用の型に正規化する。
+
+        キーが数値にキャストできない、または0以下の場合は除外し、ソートされた辞書を返す。
+        """
         normalized: dict[int, str] = {}
         for key, value in snapshots_assoc.items():
             try:
@@ -114,19 +117,16 @@ class CommandList(Command):
         if args.user is not None and args.user != "":
             target_user = args.user
 
-        limit_value = 400 if args.limit is None else args.limit
+        limit_value = AppConfigx.DEFAULT_REPO_LIMIT if args.limit is None else args.limit
         options = [f"--limit {limit_value}"]
 
         if args.json is None:
             json_fields = list(self.json_fields)
         else:
-            # `gh` CLI の `--json` はカンマ区切りのフィールド列を想定する。
-            # ユーザ指定が `visibility` を含まない場合でも、必ず `visibility` を追加する。
             json_fields = [field.strip() for field in args.json.split(",") if field.strip()]
 
-        # `visibility` の強制追加（重複は順序維持で除去）
-        if "visibility" not in json_fields:
-            json_fields.append("visibility")
+        if AppConfigx.FIELD_VISIBILITY not in json_fields:
+            json_fields.append(AppConfigx.FIELD_VISIBILITY)
         seen_fields: set[str] = set()
         normalized_fields: list[str] = []
         for field in json_fields:
@@ -153,16 +153,7 @@ class CommandList(Command):
     def get_all_repos(
         self, args: argparse.Namespace, appstore: AppStore, snapshot_id: int
     ) -> RepoAssoc:
-        """GitHub CLI で取得した一覧に管理用フィールドを付与して返す。
-
-        Args:
-            args: `list` サブコマンドの引数。
-            appstore: 設定・DB ファイルアクセスオブジェクト。
-            snapshot_id: 今回付与するスナップショットID。
-
-        Returns:
-            リポジトリ名をキーとする取得結果。
-        """
+        """GitHub CLI で取得した一覧に管理用フィールドを付与して返す。"""
         assert appstore is self.appstore
         command_line = self.get_command_for_repository(args)
         json_str = self.run_command_simple(command_line)
@@ -174,16 +165,16 @@ class CommandList(Command):
         if not isinstance(json_array, list):
             raise ValueError("gh repo list must return a JSON array")
         if any(
-            not isinstance(item, dict) or "name" not in item or "visibility" not in item
+            not isinstance(item, dict) or AppConfigx.FIELD_NAME not in item or AppConfigx.FIELD_VISIBILITY not in item
             for item in json_array
         ):
             raise ValueError(
                 "gh repo list output must include repository names and visibility"
             )
 
-        allowed_visibility = {"public", "internal", "private"}
+        allowed_visibility = {AppConfigx.VISIBILITY_PUBLIC, AppConfigx.VISIBILITY_INTERNAL, AppConfigx.VISIBILITY_PRIVATE}
         for item in json_array:
-            visibility_value = item["visibility"]
+            visibility_value = item[AppConfigx.FIELD_VISIBILITY]
             if not isinstance(visibility_value, str):
                 raise ValueError(
                     "gh repo list output has invalid visibility value: "
@@ -195,26 +186,21 @@ class CommandList(Command):
                     "gh repo list output has invalid visibility value: "
                     f"{visibility_value!r}"
                 )
-            # `gh` は PUBLIC 等の大文字で返すことがある。保存は public/internal/private に統一する。
-            item["visibility"] = normalized
+            item[AppConfigx.FIELD_VISIBILITY] = normalized
 
-        assoc = self.array_to_dict(json_array, "name")
+        assoc = self.array_to_dict(json_array, AppConfigx.FIELD_NAME)
         for name, item in list(assoc.items()):
-            item["snapshot-id"] = snapshot_id
-            item["valid"] = True
-            item["field_1"] = ""
-            item["field_2"] = ""
-            item["field_3"] = ""
+            item[AppConfigx.FIELD_SNAPSHOT_ID] = snapshot_id
+            item[AppConfigx.FIELD_VALID] = True
+            item[AppConfigx.FIELD_FIELD_1] = ""
+            item[AppConfigx.FIELD_FIELD_2] = ""
+            item[AppConfigx.FIELD_FIELD_3] = ""
             assoc[name] = item
 
         return assoc
 
     def _merge_into_repos(self, new_assoc: RepoAssoc) -> None:
-        """`repos.yaml` に新スナップショットの内容をマージ更新する。
-
-        同一リポジトリIDのレコードが存在し内容に差異があれば新しいレコードで上書きする。
-        差異がなければ更新しない。
-        """
+        """`repos.yaml` に新スナップショットの内容をマージ更新する。"""
         repos_store = self.get_repos_store()
         loaded = repos_store.load()
         repos_assoc: RepoAssoc = cast(RepoAssoc, loaded) if isinstance(loaded, dict) else {}
@@ -229,26 +215,17 @@ class CommandList(Command):
     def save_snapshot(
         self, snapshot_id: int, timestamp: str, assoc: RepoAssoc
     ) -> None:
-        """取得結果をスナップショットとして保存し、`snapshots.yaml` と `repos.yaml` も更新する。
-
-        更新順序:
-        1. `snapshots/<snapshot-id>/snapshot.yaml` を出力する。
-        2. `snapshots.yaml` に `<snapshot-id>: <timestamp>` を反映する。
-        3. `repos.yaml` をマージ更新する。
-        """
-        # 1. snapshots/<snapshot-id>/snapshot.yaml を出力する
+        """取得結果をスナップショットとして保存し、`snapshots.yaml` と `repos.yaml` も更新する。"""
         snapshot_dir = self.get_snapshots_dir() / str(snapshot_id)
-        snapshot_path = snapshot_dir / "snapshot.yaml"
+        snapshot_path = snapshot_dir / AppConfigx.SNAPSHOT_FILE_NAME
         snapshot_dir.mkdir(parents=True, exist_ok=True)
         with snapshot_path.open("w", encoding="utf-8") as snapshot_file:
             yaml.safe_dump(assoc, snapshot_file, allow_unicode=True, sort_keys=True)
 
-        # 2. snapshots.yaml を更新する
         snapshots_assoc = self._load_snapshots_assoc()
         snapshots_assoc[snapshot_id] = timestamp
         self._output_snapshots_assoc(dict(sorted(snapshots_assoc.items())))
 
-        # 3. repos.yaml をマージ更新する
         self._merge_into_repos(assoc)
 
     @staticmethod
@@ -276,10 +253,7 @@ class CommandList(Command):
 
     @staticmethod
     def _collect_snapshot_ids(snapshots_dir: str | Path) -> list[int]:
-        """スナップショットトップディレクトリ配下の数値ディレクトリ名を昇順で収集する。
-
-        数値に解釈できないディレクトリ名は対象に含めない。
-        """
+        """スナップショットトップディレクトリ配下の数値ディレクトリ名を昇順で収集する。"""
         snapshot_top_path = Path(snapshots_dir)
         if not snapshot_top_path.exists() or not snapshot_top_path.is_dir():
             return []
@@ -304,16 +278,7 @@ class CommandList(Command):
         snapshot_ids: list[int],
         fallback_timestamp: str,
     ) -> tuple[dict[int, str], bool]:
-        """スナップショット作成記録ファイルの内容を数値キー辞書へ正規化し、最大IDに合わせて補正する。
-
-        Args:
-            snapshots_assoc: 永続化済みのスナップショットID と日時の対応。
-            snapshot_ids: スナップショットトップディレクトリから得た有効なID一覧。
-            fallback_timestamp: 最大IDの補完に使う既定日時。
-
-        Returns:
-            正規化後の辞書と、入力から内容を変更したかどうか。
-        """
+        """スナップショット作成記録ファイルの内容を正規化し、補正を行う。"""
         normalized: dict[int, str] = {}
         changed = False
 
@@ -358,11 +323,7 @@ class CommandList(Command):
         return sorted_result, changed
 
     def fix_storage(self, verbose: bool = False) -> dict[str, Any]:
-        """保存済みスナップショット構成を点検し、必要な補正結果を返す。
-
-        Returns:
-            削除件数、最大スナップショットID、`snapshots.yaml` 更新有無、警告一覧を含む結果辞書。
-        """
+        """保存済みスナップショット構成を点検し、必要な補正結果を返す。"""
         warnings: list[str] = []
         user_dir = self.get_user_dir()
         snapshots_dir = self.get_snapshots_dir()

@@ -1,6 +1,7 @@
 from yklibpy.command.command import Command
 from yklibpy.command.command_gh_user import CommandGhUser
 from yklibpy.common.util import Util
+from yklibpy.config.appconfig import AppConfig
 from yklibpy.db.appstore import AppStore
 
 from ghrepo.appconfigx import AppConfigx
@@ -22,7 +23,7 @@ class CommandSetup(Command):
         if Util.is_empty(user):
             user = CommandGhUser.DEFAULT_VALUE_USER
 
-        data = {key: default_json_fields, "USER": self.appstore.user}
-        self.appstore.output_config("config", data)
+        data = {key: default_json_fields, AppConfigx.KEY_USER: self.appstore.user}
+        self.appstore.output_config(AppConfig.BASE_NAME_CONFIG, data)
         self.appstore.output_db(AppConfigx.BASE_NAME_REPOS, {})
         self.appstore.output_db(AppConfigx.BASE_NAME_SNAPSHOTS, {})

@@ -12,3 +12,10 @@ repos.json
 repos.tsv
 # Virtual environments
 .venv
+
+# Testing / Cache
+.coverage
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.antigravitycli/

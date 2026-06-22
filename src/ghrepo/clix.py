@@ -1,7 +1,11 @@
+from __future__ import annotations
+
 import argparse
 from collections.abc import Callable
 
 from yklibpy.cli import Cli
+
+from ghrepo.appconfigx import AppConfigx
 
 type CommandHandler = Callable[[argparse.Namespace], None]
 
@@ -30,7 +34,6 @@ class Clix:
             "list", help="list all repositories"
         )
         p_list.set_defaults(func=command_dict["list"])
-
         p_list.add_argument(
             "-f", "--force", action="store_true", help="force download"
         )
@@ -60,7 +63,13 @@ class Clix:
         p_search.set_defaults(func=command_dict["search"])
         p_search.add_argument(
             "search_name",
-            choices=["public", "private", "both", "internal", "latest10"],
+            choices=[
+                AppConfigx.VISIBILITY_PUBLIC,
+                AppConfigx.VISIBILITY_PRIVATE,
+                AppConfigx.SEARCH_KIND_BOTH,
+                AppConfigx.VISIBILITY_INTERNAL,
+                AppConfigx.SEARCH_KIND_LATEST10,
+            ],
             help="search kind",
         )
         p_search.add_argument("--name", help="substring pattern for repository name")
@@ -75,10 +84,9 @@ class Clix:
     def get_subparsers(
         self, name: str
     ) -> argparse._SubParsersAction[argparse.ArgumentParser]:
-        """内部の `Cli` が保持する subparsers を返す。"""
+        """内部の `Cli` インスタンスへ委譲し、保持する subparsers を返す。"""
         return self.cli.get_subparsers(name)
 
     def parse_args(self) -> argparse.Namespace:
-        """登録済み定義に従って CLI 引数を解析する。"""
+        """内部の `Cli` インスタンスへ委譲し、登録済み定義に従って CLI 引数を解析する。"""
         return self.cli.parse_args()
-
