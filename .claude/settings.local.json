@@ -13,5 +13,28 @@
       "Bash(uv --version)",
       "Bash(/c/Users/ykomi/.local/bin/uv run *)"
     ]
+  },
+  "skillOverrides": {
+    "algorithmic-art": "off",
+    "android-cli": "off",
+    "anti-distill": "off",
+    "brand-guidelines": "off",
+    "doc-coauthoring": "off",
+    "docx": "off",
+    "find-skills": "off",
+    "find-skills-j": "off",
+    "gsap-core": "off",
+    "gsap-frameworks": "off",
+    "gsap-performance": "off",
+    "gsap-plugins": "off",
+    "gsap-react": "off",
+    "gsap-scrolltrigger": "off",
+    "gsap-timeline": "off",
+    "gsap-utils": "off",
+    "internal-comms": "off",
+    "pptx": "off",
+    "slack-gif-creator": "off",
+    "theme-factory": "off",
+    "xlsx": "off"
   }
 }

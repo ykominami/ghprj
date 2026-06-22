@@ -11,6 +11,7 @@ from typing import cast
 from yklibpy.command.command_gh_user import CommandGhUser
 from yklibpy.common.loggerx import Loggerx
 from yklibpy.common.util import Util
+from yklibpy.config.appconfig import AppConfig
 from yklibpy.db.appstore import AppStore
 from yklibpy.db.storex import Storex
 
@@ -28,14 +29,7 @@ class Ghrepo:
 
     @classmethod
     def init_appstore(cls, normalized_user: str | None) -> AppStore:
-        """対象ユーザーに対応する `AppStore` を準備して返す。
-
-        Args:
-            normalized_user: 正規化済み GitHub ユーザー名。`None` の場合は実行環境から補完する。
-
-        Returns:
-            設定ファイルと DB ファイルの準備が済んだ `AppStore`。
-        """
+        """対象ユーザーに対応する `AppStore` を準備して返す。"""
         Storex.set_file_type_dict(AppConfigx.file_type_dict)
 
         if normalized_user is None:
@@ -46,7 +40,7 @@ class Ghrepo:
 
             normalized_user = Util.normalize_string(user)
 
-        appstore = AppStore("ghrepo", AppConfigx.file_assoc, normalized_user)
+        appstore = AppStore(AppConfigx.APP_NAME, AppConfigx.file_assoc, normalized_user)
         appstore.prepare_config_file_and_db_file()
         return appstore
 
@@ -70,13 +64,13 @@ class Ghrepo:
 
     @classmethod
     def list_repos(cls, args: argparse.Namespace) -> None:
-        """GitHub リポジトリ一覧を取得し、最新 DB とスナップショットを更新する。"""
+        """GitHub リポジトリ一覧を取得し、スナップショットおよび `repos.yaml` を更新する。"""
         cls._set_log_level_by_verbose(args.verbose)
 
         normalized_user = Util.normalize_string(args.user)
         appstore = cls.init_appstore(normalized_user)
         appstore.load_file_all()
-        json_fields = cast(list[str], appstore.get_from_config("config", AppConfigx.key))
+        json_fields = cast(list[str], appstore.get_from_config(AppConfig.BASE_NAME_CONFIG, AppConfigx.key))
         command = CommandList(appstore, json_fields, args.user)
         should_fetch = args.force or not command.get_snapshots_path().exists()
 
@@ -106,13 +100,13 @@ class Ghrepo:
 
     @classmethod
     def fix_repos(cls, args: argparse.Namespace) -> None:
-        """空ディレクトリ削除とスナップショット作成記録ファイルの整合性補正を実行する。`repos.yaml` は変更しない。"""
+        """空ディレクトリ削除と `snapshots.yaml` 整合性補正を実行する。`repos.yaml` は変更しない。"""
         cls._set_log_level_by_verbose(args.verbose)
 
         normalized_user = Util.normalize_string(args.user)
         appstore = cls.init_appstore(normalized_user)
         appstore.load_file_all()
-        json_fields = cast(list[str], appstore.get_from_config("config", AppConfigx.key))
+        json_fields = cast(list[str], appstore.get_from_config(AppConfig.BASE_NAME_CONFIG, AppConfigx.key))
         command = CommandList(appstore, json_fields, args.user)
         result = command.fix_storage(args.verbose)
         cls._debug_if_verbose(args.verbose, result)
@@ -130,7 +124,7 @@ class Ghrepo:
         if args.all:
             print(json.dumps(_result, ensure_ascii=False))
         else:
-            _names = [item["name"] for item in _result]
+            _names = [item[AppConfigx.FIELD_NAME] for item in _result]
             print(json.dumps(_names, ensure_ascii=True))
 
 

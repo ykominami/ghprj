@@ -1,1 +1,1 @@
-E:/Ccur/python3/ghrepo/CLAUDE.md
+@CLAUDE.md

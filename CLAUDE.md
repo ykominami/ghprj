@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 基本設定
+- 日本語で回答すること
+- コードコメントは既存スタイルに合わせるソースコード中の文字列リテラル、数値リテラルは使わず、class  sAppConfigxのクラス定数の参照にする。
+
 ## Project Overview
 
 `ghrepo` is a GitHub repository metadata extraction and management utility. It fetches repo info via the GitHub CLI (`gh`), stores versioned snapshots as YAML, and supports searching by visibility or name. Written in Python with Japanese docstrings/comments.
@@ -51,9 +55,9 @@ Two entry points are registered: `ghrepo` → `main()`, `get_user` → `get_user
 | Subcommand | Key flags | Purpose |
 |---|---|---|
 | `setup` | `--user` | Initialize config file and empty DB for a user |
-| `list` | `-f/--force`, `-v/--verbose`, `--user`, `--limit`, `--json` | Fetch repos via `gh repo list`, save snapshot + `repos.yaml`; `--json` accepts a comma-separated field list overriding the config `JSON_FIELDS` (`visibility` is always appended) |
+| `list` | `-f/--force`, `-v/--verbose`, `--user`, `--limit`, `--json`, `--output` | Fetch repos via `gh repo list`, save snapshot + `repos.yaml`; `--json` accepts a comma-separated field list overriding the config `JSON_FIELDS` (`visibility` is always appended); `--output` sets the output JSON filename (default: `repos.json`) |
 | `fix` | `--user`, `--verbose` | Remove empty directories and reconcile `snapshots.yaml`; does **not** rebuild `repos.yaml` |
-| `search` | `search_name` (positional), `--name`, `--user`, `--verbose` | Query latest snapshot; `search_name` ∈ `{public, private, both, internal, latest10}` — `both` = public + private combined; prints JSON array of repo **name** strings to stdout |
+| `search` | `search_name` (positional), `--name`, `--user`, `--verbose`, `--all` | Query latest snapshot; `search_name` ∈ `{public, private, both, internal, latest10}` — `both` = public + private combined; prints JSON array of repo **name** strings to stdout (with `--all`, prints full repo objects); `--user` filters by owner; **`latest10` ignores `--name` and `--user`** (returns early before filters are applied) |
 
 **Storage layout (per user, managed via `yklibpy.db.AppStore`):**
 - `<userdir>/snapshots.yaml` — dict of `{snapshot-id: ISO-timestamp}` recording each fetch (スナップショット作成記録ファイル)
@@ -68,8 +72,8 @@ Two entry points are registered: `ghrepo` → `main()`, `get_user` → `get_user
 
 **Key modules:**
 - `appconfigx.py` — `AppConfigx(AppConfig)` holding two field lists: `default_json_fields` (passed to `gh repo list --json`) and `default_json_fields_in_db` (superset including management fields `snapshot-id`, `valid`, `field_1/2/3`); config key `"JSON_FIELDS"`
-- `command_list.py` — `CommandList`: fetch (`get_all_repos`), snapshot (`save_snapshot`), and storage reconciliation (`fix_storage`); internal helpers `_remove_empty_directories`, `_collect_snapshot_ids`, `_coerce_snapshots_record_assoc`, `_normalize_snapshots_record_assoc` are static methods. `_coerce_snapshots_record_assoc` only type-coerces keys/values; `_normalize_snapshots_record_assoc` additionally trims excess IDs and fills in a missing max-ID entry. `get_next_snapshot_id` takes the max of IDs found in both `snapshots.yaml` and actual snapshot directories, then adds 1. `fix_storage` returns a dict with `removed_empty_directories`, `max_snapshot_id`, `snapshots_record_updated`, `warnings`. Defines type aliases `RepoItem = dict[str, Any]` and `RepoAssoc = dict[str, RepoItem]`.
-- `command_search.py` — `CommandSearch`: loads the latest `snapshot.yaml` and filters by visibility (`_filter_by_visibility`), recency (`_take_latest_n_by_created_at` for `latest10`), and name substring (`_filter_by_name_substring`). `SEARCH_KINDS` is a `ClassVar[frozenset[str]]` class variable. Also duplicates the same `RepoItem`/`RepoAssoc` type aliases.
+- `command_list.py` — `CommandList`: fetch (`get_all_repos`), snapshot (`save_snapshot`), and storage reconciliation (`fix_storage`); internal helpers `_remove_empty_directories`, `_collect_snapshot_ids`, `_coerce_snapshots_assoc`, `_normalize_snapshots_assoc` are static methods. `_coerce_snapshots_assoc` only type-coerces keys/values; `_normalize_snapshots_assoc` additionally trims excess IDs and fills in a missing max-ID entry. `get_next_snapshot_count` takes the max of IDs found in both `snapshots.yaml` and actual snapshot directories, then adds 1. `fix_storage` returns a dict with `removed_empty_directories`, `max_snapshot_id`, `snapshots_updated`, `warnings`. Defines type aliases `RepoItem = dict[str, Any]` and `RepoAssoc = dict[str, RepoItem]`.
+- `command_search.py` — `CommandSearch`: reads `snapshots/<max-id>/snapshot.yaml` directly (not `repos.yaml`), then filters by visibility (`_filter_by_visibility`), recency (`_take_latest_n_by_created_at` for `latest10`), and name substring (`_filter_by_name_substring`). `_owner_matches` checks `owner` (string), `owner.login` (dict), and `nameWithOwner` prefix. `SEARCH_KINDS` is a module-level `set[str]` constant. Also duplicates the same `RepoItem`/`RepoAssoc` type aliases.
 - `command_setup.py` — `CommandSetup`: writes initial config and empty `repos.yaml`/`snapshots.yaml` files
 - `clix.py` — `Clix` wraps `yklibpy.cli.Cli` to register all subparsers
 
@@ -87,14 +91,23 @@ Two entry points are registered: `ghrepo` → `main()`, `get_user` → `get_user
 - **Docstrings/comments:** Written in Japanese
 
 ## ドキュメントディレクトリ・ファイル構成
-### docs/spec 外部仕様書ディレクトリ
-  - [index.md](docs/spec/index.md) 仕様書インデックス
-  - [AppConfigx.md](docs/spec/AppConfigx.md) クラスAppConfigx外部仕様書
-  - [Clix.md](docs/spec/Clix.md) クラスClix外部仕様書
-  - [CommandList.md](docs/spec/CommandList.md) クラスCommandList外部仕様書
-  - [CommandSearch.md](docs/spec/CommandSearch.md) クラスCommandSearch外部仕様書
-  - [CommandSetup.md](docs/spec/CommandSetup.md) クラスCommandSetup外部仕様書
-  - [Ghrepo.md](docs/spec/Ghrepo.md) クラスGhrepo外部仕様書
+### docs/spec/external 外部仕様書ディレクトリ
+  - [index.md](docs/spec/external/index.md) 外部仕様書インデックス
+  - [AppConfigx.md](docs/spec/external/AppConfigx.md) クラスAppConfigx外部仕様書
+  - [Clix.md](docs/spec/external/Clix.md) クラスClix外部仕様書
+  - [CommandList.md](docs/spec/external/CommandList.md) クラスCommandList外部仕様書
+  - [CommandSearch.md](docs/spec/external/CommandSearch.md) クラスCommandSearch外部仕様書
+  - [CommandSetup.md](docs/spec/external/CommandSetup.md) クラスCommandSetup外部仕様書
+  - [Ghrepo.md](docs/spec/external/Ghrepo.md) クラスGhrepo外部仕様書
+
+### docs/spec/internal 内部仕様書ディレクトリ
+  - [index.md](docs/spec/internal/index.md) 内部仕様書インデックス
+  - [AppConfigx.md](docs/spec/internal/AppConfigx.md) クラスAppConfigx内部仕様書
+  - [Clix.md](docs/spec/internal/Clix.md) クラスClix内部仕様書
+  - [CommandList.md](docs/spec/internal/CommandList.md) クラスCommandList内部仕様書
+  - [CommandSearch.md](docs/spec/internal/CommandSearch.md) クラスCommandSearch内部仕様書
+  - [CommandSetup.md](docs/spec/internal/CommandSetup.md) クラスCommandSetup内部仕様書
+  - [Ghrepo.md](docs/spec/internal/Ghrepo.md) クラスGhrepo内部仕様書
 
 ### docs/req 要求仕様書ディレクトリ
 
