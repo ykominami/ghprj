@@ -11,7 +11,13 @@
       "Bash(cmd *)",
       "Bash(powershell *)",
       "Bash(uv --version)",
-      "Bash(/c/Users/ykomi/.local/bin/uv run *)"
+      "Bash(/c/Users/ykomi/.local/bin/uv run *)",
+      "Bash(uv python *)",
+      "Bash(echo \"exit: $?\")",
+      "Read(//Users/ykominami/.config/ghrepo/**)",
+      "Read(//Users/ykominami/.local/share/ghrepo/**)",
+      "Bash(gh --version)",
+      "Bash(git check-ignore *)"
     ]
   },
   "skillOverrides": {

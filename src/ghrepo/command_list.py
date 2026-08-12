@@ -111,14 +111,13 @@ class CommandList(Command):
         max_snapshot_id = max(snapshot_ids, default=0)
         return max(max_record_snapshot_id, max_snapshot_id) + 1
 
-    def get_command_for_repository(self, args: argparse.Namespace) -> str:
-        """CLI 引数と設定値から `gh repo list` コマンド文字列を組み立てる。"""
+    def get_command_for_repository(self, args: argparse.Namespace) -> list[str]:
+        """CLI 引数と設定値から `gh repo list` コマンド引数列を組み立てる。"""
         target_user = self.config_user
         if args.user is not None and args.user != "":
             target_user = args.user
 
         limit_value = AppConfigx.DEFAULT_REPO_LIMIT if args.limit is None else args.limit
-        options = [f"--limit {limit_value}"]
 
         if args.json is None:
             json_fields = list(self.json_fields)
@@ -136,14 +135,13 @@ class CommandList(Command):
             normalized_fields.append(field)
 
         json_value = ",".join(normalized_fields)
-        options.append(f"--json {json_value}")
 
-        command_parts = ["gh repo list"]
+        command_parts = ["gh", "repo", "list"]
         if target_user != "":
             command_parts.append(target_user)
-        command_parts.append(" ".join(options))
+        command_parts.extend(["--limit", str(limit_value), "--json", json_value])
 
-        return " ".join(command_parts)
+        return command_parts
 
     @staticmethod
     def array_to_dict(array: list[RepoItem], key: str) -> RepoAssoc:
